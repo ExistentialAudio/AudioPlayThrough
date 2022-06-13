@@ -1,0 +1,142 @@
+/*
+ 
+AudioPlayThrough.hpp
+ 
+Copyright (c) 2021 Devin Roth
+
+ */
+
+#ifndef AudioPlayThrough_hpp
+#define AudioPlayThrough_hpp
+
+
+
+#include <iostream>
+#include <CoreAudio/CoreAudio.h>
+#include <AudioToolbox/AudioToolbox.h>
+//#include <RequestMicrophoneAuthorization.h>
+
+#define checkStatus(status) \
+if(status) {\
+    OSStatus error = static_cast<OSStatus>(status);\
+        fprintf(stdout, "CAPlayThrough Error: %X ->  %s:  %d\n",  error,\
+               __FILE__, \
+               __LINE__\
+               );\
+                   fflush(stdout);\
+        return status; \
+}
+
+
+class AudioPlayThrough {
+    
+    AudioComponentDescription audioComponentDescription;
+    
+    AudioComponentDescription halAudioComponentDescription = {
+        .componentType = kAudioUnitType_Output,
+        .componentSubType = kAudioUnitSubType_HALOutput,
+        .componentManufacturer = kAudioUnitManufacturer_Apple,
+        .componentFlags = 0,
+        .componentFlagsMask = 0};
+    
+    AudioComponentDescription varispeedAudioComponentDescription = {
+        .componentType = kAudioUnitType_FormatConverter,
+        .componentSubType = kAudioUnitSubType_Varispeed,
+        .componentManufacturer = kAudioUnitManufacturer_Apple,
+        .componentFlags = 0,
+        .componentFlagsMask = 0};
+    
+    AudioComponentDescription multiChannelMixerAudioComponentDescription = {
+        .componentType = kAudioUnitType_Mixer,
+        .componentSubType = kAudioUnitSubType_MultiChannelMixer,
+        .componentManufacturer = kAudioUnitManufacturer_Apple,
+        .componentFlags = 0,
+        .componentFlagsMask = 0};
+    
+    AudioComponentDescription newTimePitchAudioComponentDescription = {
+        .componentType = kAudioUnitType_FormatConverter,
+        .componentSubType = kAudioUnitSubType_NewTimePitch,
+        .componentManufacturer = kAudioUnitManufacturer_Apple,
+        .componentFlags = 0,
+        .componentFlagsMask = 0};
+    
+    AudioUnit inputAudioUnit = NULL;
+    AudioUnit varispeedAudioUnit = NULL;
+    AudioUnit audioUnit = NULL;
+    AudioUnit multiChannelMixerAudioUnit = NULL;
+    AudioUnit newTimePitchAudioUnit = NULL;
+    AudioUnit outputAudioUnit = NULL;
+    
+    AudioDeviceID inputAudioDeviceID = 0;
+    AudioDeviceID outputAudioDeviceID = 0;
+    
+    CFStringRef inputAudioDeviceUID = NULL;
+    CFStringRef outputAudioDeviceUID = NULL;
+    
+    AudioBufferList* inputBuffer = NULL;
+    UInt32 ringBufferFrameSize = 192000;
+    Float32* ringBuffer = NULL;
+    
+    Float64 firstInputTime = 0;
+    Float64 firstOutputTime = 0;
+    Float64 inToOutSampleOffset = 0;
+    
+    AudioStreamBasicDescription inputAudioStreamBasicDescription;
+    AudioStreamBasicDescription outputAudioStreamBasicDescription;
+    
+    Boolean monoInput = false;
+    Boolean monoOutput = false;
+    
+    Float64 inputFrameSize = 0;
+    Float64 outputFrameSize = 0;
+    
+    Boolean isRunning = false;
+    
+    dispatch_queue_t queue = dispatch_queue_create("AudioPlayThroughQueue", NULL);
+    
+public:
+    AudioPlayThrough();
+    OSStatus create(CFStringRef input, CFStringRef output);
+    OSStatus start();
+    OSStatus stop();
+    void setAudioUnit(AudioComponentDescription audioComponentDescription);
+    void bypassAudioUnit(UInt32 value);
+    ~AudioPlayThrough();
+    
+private:
+    OSStatus setup();
+    
+    AudioDeviceID getAudioDeviceID(CFStringRef deviceUID);
+    
+    OSStatus instantiateAudioUnit(AudioUnit audioUnit, AudioComponentDescription audioComponentDescription);
+    OSStatus setupAudioFormats();
+    OSStatus setupInput(AudioDeviceID audioDeviceID);
+    OSStatus setupVarispeed();
+    OSStatus setupAudioUnit();
+    OSStatus setupOutput(AudioDeviceID audioDeviceID);
+    OSStatus setupBuffers();
+    OSStatus setupConnections();
+    OSStatus initializeAudioUnits();
+    OSStatus addInputListener();
+    OSStatus addOutputListener();
+    
+    OSStatus takedown();
+    OSStatus removeInputListener();
+    OSStatus removeOutputListener();
+    
+    OSStatus addDeviceIsAliveListener(AudioDeviceID audioDeviceID);
+    OSStatus removeDeviceIsAliveListener(AudioDeviceID audioDeviceID);
+    static OSStatus deviceIsAliveListenerProc(AudioObjectID inObjectID, UInt32 inNumberAddresses, const AudioObjectPropertyAddress *inAddresses, void *inClientData);
+    
+    Float64 readLocation = 0;
+    Float64 writeLocation = 0;
+    
+    static OSStatus inputProc(void *inRefCon, AudioUnitRenderActionFlags *ioActionFlags, const AudioTimeStamp *inTimeStamp, UInt32 inBusNumber, UInt32 inNumberFrames, AudioBufferList *ioData);
+    
+    static OSStatus outputProc(void *inRefCon, AudioUnitRenderActionFlags *ioActionFlags, const AudioTimeStamp *inTimeStamp, UInt32 inBusNumber, UInt32 inNumberFrames, AudioBufferList *ioData);
+    
+    static OSStatus streamListenerProc(AudioObjectID inObjectID, UInt32 inNumberAddresses, const AudioObjectPropertyAddress *inAddresses, void *inClientData);
+};
+
+
+#endif /* PlayThrough_hpp */
