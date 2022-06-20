@@ -1,0 +1,6 @@
+module AudioPlayThroughObjC {
+
+  header "AudioPlayThroughObjC.h"
+
+  export *
+}

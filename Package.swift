@@ -7,8 +7,8 @@ let package = Package(
     name: "AudioPlayThrough",
     products: [
         .library(
-            name: "AudioPlayThrough",
-            targets: ["AudioPlayThrough"]),
+            name: "AudioPlayThroughCPP",
+            targets: ["AudioPlayThroughCPP"]),
         .library(
             name: "AudioPlayThroughObjC",
             targets: ["AudioPlayThroughObjC"]),
@@ -17,12 +17,20 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "AudioPlayThrough",
+            name: "AudioPlayThroughCPP",
             dependencies: []),
         .target(
             name: "AudioPlayThroughObjC",
-            dependencies: ["AudioPlayThrough"]),
+            dependencies: ["AudioPlayThroughCPP"]),
+        .testTarget(
+            name: "AudioPlayThroughTests",
+            dependencies: ["AudioPlayThroughObjC"]),
     ],
     cLanguageStandard: .c11,
     cxxLanguageStandard: .cxx14
 )
+
+// Routing
+// Default Mic -> Record Driver (hidden)
+// Default Output -> Driver -> Output and Record Driver
+// Record Driver -> Recorded

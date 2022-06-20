@@ -8,6 +8,8 @@
 #ifndef AudioPlayThroughObjC_h
 #define AudioPlayThroughObjC_h
 
+#import <AudioToolbox/AudioToolbox.h>
+
 @interface AudioPlayThroughObjC:NSObject
 
 -(OSStatus) create:(CFStringRef) input :(CFStringRef) output;

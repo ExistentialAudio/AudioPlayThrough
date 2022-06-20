@@ -6,8 +6,8 @@
 //
 
 #import <Foundation/Foundation.h>
-#import <AudioPlayThroughObjC.h>
-#import <AudioPlayThrough.hpp>
+#import "AudioPlayThroughObjC.h"
+#import "AudioPlayThrough.hpp"
 
 
 @implementation AudioPlayThroughObjC {
