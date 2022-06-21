@@ -14,7 +14,7 @@ Copyright (c) 2021 Devin Roth
 #include <iostream>
 #include <CoreAudio/CoreAudio.h>
 #include <AudioToolbox/AudioToolbox.h>
-//#include <RequestMicrophoneAuthorization.h>
+#include <RequestMicrophoneAuthorization.h>
 
 #define checkStatus(status) \
 if(status) {\

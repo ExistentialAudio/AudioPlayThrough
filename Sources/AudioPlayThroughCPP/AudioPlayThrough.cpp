@@ -18,7 +18,7 @@ AudioPlayThrough::AudioPlayThrough()
     
     
     // Check to make sure we have access to the microphone.
-    //RequestMicrophoneAuthorization();
+    RequestMicrophoneAuthorization();
     
     // Instantiate Audio Units
     instantiateAudioUnit(inputAudioUnit, halAudioComponentDescription);
