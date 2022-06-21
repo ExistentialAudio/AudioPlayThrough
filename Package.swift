@@ -18,10 +18,13 @@ let package = Package(
     targets: [
         .target(
             name: "AudioPlayThroughCPP",
-            dependencies: []),
+            dependencies: ["RequestMicrophoneAuthorization"]),
         .target(
             name: "AudioPlayThroughObjC",
             dependencies: ["AudioPlayThroughCPP"]),
+        .target(
+            name: "RequestMicrophoneAuthorization",
+            dependencies: []),
         .testTarget(
             name: "AudioPlayThroughTests",
             dependencies: ["AudioPlayThroughObjC"]),
