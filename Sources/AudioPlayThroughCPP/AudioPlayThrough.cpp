@@ -224,17 +224,6 @@ OSStatus AudioPlayThrough::inputProc(void *inRefCon, AudioUnitRenderActionFlags 
             This->ringBuffer[ringBufferLocation] = buffer[frame];
         }
     }
-    // If the output is mono we are going to mix the two channels together. It's not needed if the input is also mono which convienently skips this block of code.
-//    else if (This->monoOutput)
-//    {
-//        for (UInt32 frame = 0; frame < inNumberFrames; frame ++){
-//            Float32* bufferR = (Float32*)This->inputBuffer->mBuffers[0].mData;
-//            Float32* bufferL = (Float32*)This->inputBuffer->mBuffers[1].mData;
-//            UInt64 ringBufferLocation = ((UInt64)(inTimeStamp->mSampleTime + frame) % This->ringBufferFrameSize) + This->ringBufferFrameSize;
-//            This->ringBuffer[ringBufferLocation] = bufferR[frame];
-//            This->ringBuffer[ringBufferLocation] += bufferL[frame];
-//        }
-//    }
     // Both input and output are 2 or more channels.
     else
     {
@@ -475,25 +464,6 @@ OSStatus AudioPlayThrough::setupAudioFormats(){
     size = sizeof(AudioStreamBasicDescription);
     
     checkStatus(AudioObjectGetPropertyData(streamAudioDeviceID, &inAddress, 0, NULL, &size, &outputAudioStreamBasicDescription));
-    
-    
-    if (inputAudioStreamBasicDescription.mChannelsPerFrame == 1)
-    {
-        monoInput = true;
-    } else
-    {
-        monoInput = false;
-    }
-    inputAudioStreamBasicDescription.mChannelsPerFrame = 2;
-    
-    
-    if (outputAudioStreamBasicDescription.mChannelsPerFrame == 1)
-    {
-        monoOutput = true;
-    } else
-    {
-        monoOutput = false;
-    }
     
     // Everything works better if we stick with stereo.
     inputAudioStreamBasicDescription.mChannelsPerFrame = 2;
