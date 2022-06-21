@@ -82,7 +82,6 @@ AudioDeviceID AudioPlayThrough::getAudioDeviceID(CFStringRef deviceUID){
 
 OSStatus AudioPlayThrough::setup(){
     
-    takedown();
     checkStatus(setupAudioFormats());
     checkStatus(setupInput(inputAudioDeviceID));
     checkStatus(setupVarispeed());
@@ -100,6 +99,9 @@ OSStatus AudioPlayThrough::setup(){
 
 OSStatus AudioPlayThrough::start()
 {
+    
+//    stop()
+
     
     __block OSStatus status = noErr;
     
@@ -166,14 +168,12 @@ OSStatus AudioPlayThrough::stop()
         dispatch_sync(queue, ^{
         
             if (inputAudioUnit != NULL) status = (AudioOutputUnitStop(inputAudioUnit));
-            inputAudioUnit = NULL;
             if (status != noErr)
             {
                 return;
             }
             
             if (inputAudioUnit != NULL) status = (AudioOutputUnitStop(outputAudioUnit));
-            outputAudioUnit = NULL;
                 if (status != noErr)
             {
                 return;
@@ -184,7 +184,7 @@ OSStatus AudioPlayThrough::stop()
         });
     }
     
-
+    takedown();
     
     return noErr;
 }
@@ -1025,35 +1025,39 @@ OSStatus AudioPlayThrough::takedown(){
     // If we free memory before the callbacks stop it will crash.
     // The callbacks get called a few times before they actually stop.
     
-    // free memory
-    if (inputBuffer != NULL) {
-        for (UInt32 buffer = 0; buffer < inputBuffer->mNumberBuffers; buffer++)
-        {
-            if (inputBuffer->mBuffers[buffer].mData != NULL){
-                free(inputBuffer->mBuffers[buffer].mData);
-                inputBuffer->mBuffers[buffer].mData = NULL;
+    dispatch_sync(queue, ^{
+        
+        // free memory
+        if (inputBuffer != NULL) {
+            for (UInt32 buffer = 0; buffer < inputBuffer->mNumberBuffers; buffer++)
+            {
+                if (inputBuffer->mBuffers[buffer].mData != NULL){
+                    free(inputBuffer->mBuffers[buffer].mData);
+                    inputBuffer->mBuffers[buffer].mData = NULL;
+                }
             }
+            free(inputBuffer);
+            inputBuffer = NULL;
         }
-        free(inputBuffer);
-        inputBuffer = NULL;
-    }
-
-    if (ringBuffer != NULL) {
-        free(ringBuffer);
-        ringBuffer = NULL;
-    }
-    
-    // remove listeners
-    removeInputListener();
-    removeOutputListener();
-    removeDeviceIsAliveListener(inputAudioDeviceID);
-    removeDeviceIsAliveListener(outputAudioDeviceID);
-    
-    // uninitializeaudiounit
-    AudioUnitUninitialize(inputAudioUnit);
-    AudioUnitUninitialize(outputAudioUnit);
-    AudioUnitUninitialize(varispeedAudioUnit);
-    AudioUnitUninitialize(audioUnit);
+        
+        if (ringBuffer != NULL) {
+            free(ringBuffer);
+            ringBuffer = NULL;
+        }
+        
+        // remove listeners
+        removeInputListener();
+        removeOutputListener();
+        removeDeviceIsAliveListener(inputAudioDeviceID);
+        removeDeviceIsAliveListener(outputAudioDeviceID);
+        
+        // uninitializeaudiounit
+        AudioUnitUninitialize(inputAudioUnit);
+        AudioUnitUninitialize(outputAudioUnit);
+        AudioUnitUninitialize(varispeedAudioUnit);
+        AudioUnitUninitialize(audioUnit);
+        
+    });
     
     return noErr;
 }
