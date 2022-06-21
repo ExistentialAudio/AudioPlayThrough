@@ -1022,8 +1022,6 @@ OSStatus AudioPlayThrough::deviceIsAliveListenerProc(AudioObjectID inObjectID, U
 
 OSStatus AudioPlayThrough::takedown(){
     
-    stop();
-    
     // If we free memory before the callbacks stop it will crash.
     // The callbacks get called a few times before they actually stop.
     
