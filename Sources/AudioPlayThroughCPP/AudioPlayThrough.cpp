@@ -10,6 +10,13 @@ Copyright (c) 2021 Devin Roth
 
 AudioPlayThrough::AudioPlayThrough()
 {
+    std::snprintf(queueName, 100, "AudioPlayThroughQueue_%d", rand());
+    
+    printf("New queue created named %s.\n", queueName);
+    
+    queue = dispatch_queue_create(queueName, NULL);
+    
+    
     // Check to make sure we have access to the microphone.
     //RequestMicrophoneAuthorization();
     
@@ -46,8 +53,10 @@ OSStatus AudioPlayThrough::instantiateAudioUnit(AudioUnit audioUnit, AudioCompon
 
 OSStatus AudioPlayThrough::create(CFStringRef input, CFStringRef output){
     
-    inputAudioDeviceUID = input;
-    outputAudioDeviceUID = output;
+    
+    
+    inputAudioDeviceUID = CFStringCreateCopy(NULL, input);;
+    outputAudioDeviceUID = CFStringCreateCopy(NULL, output);;
     return noErr;
 }
 

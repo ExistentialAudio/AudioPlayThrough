@@ -92,7 +92,8 @@ class AudioPlayThrough {
     
     Boolean isRunning = false;
     
-    dispatch_queue_t queue = dispatch_queue_create("AudioPlayThroughQueue", NULL);
+    dispatch_queue_t queue;
+    char queueName[100];
     
 public:
     AudioPlayThrough();
