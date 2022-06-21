@@ -15,6 +15,7 @@
 -(OSStatus) create:(CFStringRef) input :(CFStringRef) output;
 -(OSStatus) start;
 -(OSStatus) stop;
+-(void) setIsMono:(Boolean) isMono;
 
 @end
 

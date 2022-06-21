@@ -48,4 +48,13 @@
     return audioPlayThrough->stop();
 }
 
+-(void) setIsMono:(Boolean) isMono {
+    
+    if (audioPlayThrough == NULL)
+    {
+        audioPlayThrough =  new AudioPlayThrough();
+    }
+    audioPlayThrough->monoInput = isMono;
+}
+
 @end
