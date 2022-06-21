@@ -16,19 +16,35 @@
 
 -(id)init {
     self = [super init];
-    audioPlayThrough =  new AudioPlayThrough();
+    audioPlayThrough = NULL;
     return self;
 }
 
 -(OSStatus) create:(CFStringRef) input :(CFStringRef) output {
+    
+    if (audioPlayThrough == NULL)
+    {
+        audioPlayThrough =  new AudioPlayThrough();
+    }
+    
     return audioPlayThrough->create(input, output);
 }
 
 -(OSStatus) start {
+    
+    if (audioPlayThrough == NULL)
+    {
+        audioPlayThrough =  new AudioPlayThrough();
+    }
     return audioPlayThrough->start();
 }
 
 -(OSStatus) stop {
+    
+    if (audioPlayThrough == NULL)
+    {
+        audioPlayThrough =  new AudioPlayThrough();
+    }
     return audioPlayThrough->stop();
 }
 
