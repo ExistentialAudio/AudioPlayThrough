@@ -1,0 +1,6 @@
+module AudioPlayThroughCPP {
+
+  header "AudioPlayThrough.hpp"
+
+  export *
+}
