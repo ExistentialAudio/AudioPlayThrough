@@ -118,6 +118,7 @@ OSStatus AudioPlayThrough::start()
         
         if (inputAudioDeviceID == 0) {
             std::cout<< "Unable to start AudioPlayThrough. Invalid input device." << std::endl;
+            CFShow(inputAudioDeviceUID);
             status = kAudioHardwareBadDeviceError;
             return;
         }
@@ -126,6 +127,7 @@ OSStatus AudioPlayThrough::start()
         
         if (outputAudioDeviceID == 0) {
             std::cout<< "Unable to start AudioPlayThrough. Invalid output device: " << std::endl;
+            CFShow(outputAudioDeviceUID);
             status = kAudioHardwareBadDeviceError;
             return;
         }
