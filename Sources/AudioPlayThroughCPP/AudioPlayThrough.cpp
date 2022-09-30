@@ -409,18 +409,21 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
     // Copy audio from the ringbuffer.
     UInt32 channels = ioData->mNumberBuffers;
     
-    if (!This->mute)
-    {
-        for (UInt32 frame = 0; frame < inNumberFrames; frame ++){
-            for (UInt32 channel = 0; channel < channels; channel++){
-                
-                Float32* buffer = (Float32*)ioData->mBuffers[channel].mData;
-                UInt64 ringBufferLocation = ((UInt64)(This->readLocation + frame) % This->ringBufferFrameSize) + This->ringBufferFrameSize * channel;
-                if (This->ringBuffer != NULL) {
+
+    for (UInt32 frame = 0; frame < inNumberFrames; frame ++){
+        for (UInt32 channel = 0; channel < channels; channel++){
+            
+            Float32* buffer = (Float32*)ioData->mBuffers[channel].mData;
+            UInt64 ringBufferLocation = ((UInt64)(This->readLocation + frame) % This->ringBufferFrameSize) + This->ringBufferFrameSize * channel;
+            if (This->ringBuffer != NULL) {
+                if (This->mute)
+                {
+                    buffer[frame] = 0;
+                }
+                else
+                {
                     buffer[frame] = This->ringBuffer[ringBufferLocation];
                 }
-
-
             }
         }
     }
