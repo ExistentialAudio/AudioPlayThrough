@@ -86,6 +86,7 @@ class AudioPlayThrough {
     
     Boolean monoOutput = false;
     
+    
     Float64 inputFrameSize = 0;
     Float64 outputFrameSize = 0;
     
@@ -103,7 +104,9 @@ public:
     void bypassAudioUnit(UInt32 value);
     ~AudioPlayThrough();
     
+    
     Boolean monoInput = false;
+    Boolean mute = false;
     
 private:
     OSStatus setup();
