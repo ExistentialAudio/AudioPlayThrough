@@ -239,6 +239,13 @@ OSStatus AudioPlayThrough::inputProc(void *inRefCon, AudioUnitRenderActionFlags 
         }
     }
     
+    if (This->peakCallback != NULL)
+    {
+        float peak;
+        vDSP_maxv((Float32*)This->inputBuffer->mBuffers[0].mData, 1, &peak, inNumberFrames);
+        This->peakCallback(peak);
+    }
+    
     This->writeLocation = inTimeStamp->mSampleTime + inNumberFrames;
 
     

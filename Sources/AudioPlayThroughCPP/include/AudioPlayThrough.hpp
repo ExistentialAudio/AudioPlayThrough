@@ -15,6 +15,7 @@ Copyright (c) 2021 Devin Roth
 #include <CoreAudio/CoreAudio.h>
 #include <AudioToolbox/AudioToolbox.h>
 #include <RequestMicrophoneAuthorization.h>
+#include <Accelerate/Accelerate.h>
 
 #define checkStatus(status) \
 if(status) {\
@@ -107,6 +108,8 @@ public:
     
     Boolean monoInput = false;
     Boolean mute = false;
+    
+    void (*peakCallback)(Float32 peak) = NULL;
     
 private:
     OSStatus setup();
