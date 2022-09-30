@@ -17,6 +17,12 @@ Copyright (c) 2021 Devin Roth
 #include <RequestMicrophoneAuthorization.h>
 #include <Accelerate/Accelerate.h>
 
+
+// AEC3
+#include "api/echo_canceller3_factory.h"
+#include "audio_processing/audio_buffer.h"
+#include "audio_processing/high_pass_filter.h"
+
 #define checkStatus(status) \
 if(status) {\
     OSStatus error = static_cast<OSStatus>(status);\

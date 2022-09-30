@@ -17,11 +17,12 @@ let package = Package(
             targets: ["AudioPlayThroughObjC"]),
     ],
     dependencies: [
+        .package(url: "https://github.com/ExistentialAudio/AEC3.git", exact: "1.1.0")
     ],
     targets: [
         .target(
             name: "AudioPlayThroughCPP",
-            dependencies: ["RequestMicrophoneAuthorization"]),
+            dependencies: ["RequestMicrophoneAuthorization", "AEC3"]),
         .target(
             name: "AudioPlayThroughObjC",
             dependencies: ["AudioPlayThroughCPP"]),
