@@ -217,6 +217,11 @@ OSStatus AudioPlayThrough::inputProc(void *inRefCon, AudioUnitRenderActionFlags 
     // Copy audio to the ringbuffer.
     UInt32 channels = This->inputBuffer->mNumberBuffers;
     
+    if (This->enableAEC3)
+    {
+        This->applyAEC3();
+    }
+    
     
     // If the input is mono we are copying the audio to both channel 1 and 2.
     if (This->monoInput)
@@ -255,11 +260,6 @@ OSStatus AudioPlayThrough::inputProc(void *inRefCon, AudioUnitRenderActionFlags 
     }
     
     This->writeLocation = inTimeStamp->mSampleTime + inNumberFrames;
-    
-    if (This->enableAEC3)
-    {
-        This->applyAEC3();
-    }
 
     
 //    // Sine Wave for Testing
@@ -1136,6 +1136,14 @@ void AudioPlayThrough::applyAEC3()
     //printf("Apply AEC3\n");
     const float *const refData = (float* const)aecFilterBuffer;
     const float *const recData = (float* const)inputBuffer->mBuffers[0].mData;
+    
+    
+//    for (UInt32 frame = 0; frame < 480; frame++)
+//    {
+//        ((float*)aecFilterBuffer)[frame] = 0;
+//        ((float*)inputBuffer->mBuffers[0].mData)[frame] = 1.0;
+//    }
+    
     ref_audio->CopyFrom(&refData, config);
     aec_audio->CopyFrom(&recData, config);
     //Time->Freq
