@@ -132,6 +132,7 @@ OSStatus AudioPlayThrough::start()
             return;
         }
         
+        setBufferFrameSize(inputAudioDeviceID, 480); 
         
         setup();
 
@@ -203,6 +204,8 @@ OSStatus AudioPlayThrough::inputProc(void *inRefCon, AudioUnitRenderActionFlags 
     
     This->inputFrameSize = inNumberFrames;
     
+    //printf("Frame Size: %i \n", inNumberFrames);
+    
     // Get the new audio data
     checkStatus(AudioUnitRender(This->inputAudioUnit,
                          ioActionFlags,
@@ -246,7 +249,17 @@ OSStatus AudioPlayThrough::inputProc(void *inRefCon, AudioUnitRenderActionFlags 
         This->peakCallback(peak);
     }
     
+    if (This->bufferCallback != NULL)
+    {
+        This->bufferCallback((Float32*)This->inputBuffer->mBuffers[0].mData);
+    }
+    
     This->writeLocation = inTimeStamp->mSampleTime + inNumberFrames;
+    
+    if (This->enableAEC3)
+    {
+        This->applyAEC3();
+    }
 
     
 //    // Sine Wave for Testing
@@ -1075,4 +1088,93 @@ OSStatus AudioPlayThrough::takedown(){
     });
     
     return noErr;
+}
+
+static int ref_format = 3;
+static int ref_channels = 1;
+static int ref_sample_rate = 48000;
+static int ref_bits_per_sample = 32;
+static int rec_format = 3;
+static int rec_channels = 1;
+static int rec_sample_rate = 48000;
+static int rec_bits_per_sample = 32;
+
+static unsigned int ref_data_length;
+static unsigned int rec_data_length;
+
+webrtc::EchoCanceller3Config aec_config;
+//aec_config.filter.export_linear_aec_output = true;
+webrtc::EchoCanceller3Factory aec_factory = webrtc::EchoCanceller3Factory(aec_config);
+std::unique_ptr<webrtc::EchoControl> echo_controller = aec_factory.Create(ref_sample_rate, ref_channels, rec_channels);
+std::unique_ptr<webrtc::HighPassFilter> hp_filter = std::make_unique<webrtc::HighPassFilter>(rec_sample_rate, rec_channels);
+
+static int sample_rate = rec_sample_rate;
+static int channels = rec_channels;
+static int bits_per_sample = rec_bits_per_sample;
+static webrtc::StreamConfig config = webrtc::StreamConfig(sample_rate, channels, false);
+
+//Audio which provides a reference on what (not) to cancel out
+static std::unique_ptr<webrtc::AudioBuffer> ref_audio = std::make_unique<webrtc::AudioBuffer>(
+    config.sample_rate_hz(), config.num_channels(),
+    config.sample_rate_hz(), config.num_channels(),
+    config.sample_rate_hz(), config.num_channels());
+
+//The audio upon which cancellation should be applied (processes in-place)
+static std::unique_ptr<webrtc::AudioBuffer> aec_audio = std::make_unique<webrtc::AudioBuffer>(
+    config.sample_rate_hz(), config.num_channels(),
+    config.sample_rate_hz(), config.num_channels(),
+    config.sample_rate_hz(), config.num_channels());
+constexpr int kLinearOutputRateHz = 16000;
+//Another output for the linear filter
+static std::unique_ptr<webrtc::AudioBuffer> aec_linear_audio = std::make_unique<webrtc::AudioBuffer>(
+    kLinearOutputRateHz, config.num_channels(),
+    kLinearOutputRateHz, config.num_channels(),
+    kLinearOutputRateHz, config.num_channels());
+
+void AudioPlayThrough::applyAEC3()
+{
+    //printf("Apply AEC3\n");
+    const float *const refData = (float* const)aecFilterBuffer;
+    const float *const recData = (float* const)inputBuffer->mBuffers[0].mData;
+    ref_audio->CopyFrom(&refData, config);
+    aec_audio->CopyFrom(&recData, config);
+    //Time->Freq
+    ref_audio->SplitIntoFrequencyBands();
+    echo_controller->AnalyzeRender(ref_audio.get());
+    //Freq->Time
+    ref_audio->MergeFrequencyBands();
+    echo_controller->AnalyzeCapture(aec_audio.get());
+    //Time->Freq
+    aec_audio->SplitIntoFrequencyBands();
+    //Nyquist based on sample rate
+    hp_filter->Process(aec_audio.get(), true);
+    //Critical to apply non-0 value here if fixed minimum latency is known
+    echo_controller->SetAudioBufferDelay(0);
+    //Opt. for streaming: No need to render linear filter output
+    echo_controller->ProcessCapture(aec_audio.get(), aec_linear_audio.get(), false);
+    //Freq->Time
+    aec_audio->MergeFrequencyBands();
+
+    float* const outAudio = (float* const)inputBuffer->mBuffers[0].mData;
+    aec_audio->CopyTo(config, &outAudio);
+    
+    // Copy audio to other stereo channel
+    memcpy(inputBuffer->mBuffers[1].mData, inputBuffer->mBuffers[0].mData, inputBuffer->mBuffers[0].mDataByteSize);
+    
+    
+
+}
+
+void AudioPlayThrough::fillAEC3FilterBuffer(void* buffer)
+{
+    //printf("fillAEC3FilterBuffer\n");
+    memcpy(aecFilterBuffer, buffer, 1024*sizeof(float));
+}
+
+void AudioPlayThrough::setBufferFrameSize(AudioDeviceID audioDeviceID, UInt32 bufferFrameSize)
+{
+    AudioObjectPropertyAddress address;
+    address.mSelector = kAudioDevicePropertyBufferFrameSize;
+    
+    return AudioObjectSetPropertyData(audioDeviceID, &address, 0, NULL, sizeof(bufferFrameSize), &bufferFrameSize);
 }

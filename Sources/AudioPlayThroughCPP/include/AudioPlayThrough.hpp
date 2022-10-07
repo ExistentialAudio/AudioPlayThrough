@@ -114,13 +114,19 @@ public:
     
     Boolean monoInput = false;
     Boolean mute = false;
+    Boolean enableAEC3 = false;
     
     void (*peakCallback)(Float32 peak) = NULL;
+    void (*bufferCallback)(Float32* buffer) = NULL;
+    
+    void fillAEC3FilterBuffer(void* buffer);
     
 private:
     OSStatus setup();
     
     AudioDeviceID getAudioDeviceID(CFStringRef deviceUID);
+    
+    void setBufferFrameSize(AudioDeviceID audioDeviceID, UInt32 size);
     
     OSStatus instantiateAudioUnit(AudioUnit audioUnit, AudioComponentDescription audioComponentDescription);
     OSStatus setupAudioFormats();
@@ -137,6 +143,9 @@ private:
     OSStatus takedown();
     OSStatus removeInputListener();
     OSStatus removeOutputListener();
+    
+    float* aecFilterBuffer = (float*)calloc(1024, sizeof(float));
+    void applyAEC3();
     
     OSStatus addDeviceIsAliveListener(AudioDeviceID audioDeviceID);
     OSStatus removeDeviceIsAliveListener(AudioDeviceID audioDeviceID);
