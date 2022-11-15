@@ -25,9 +25,13 @@ final class TranslateUIDToDeviceTests: XCTestCase {
         let audioPlayThrough = AudioPlayThroughObjC()
 
         XCTAssert(noErr == audioPlayThrough.create(
-            "AppleUSBAudioEngine:Apogee:Quartet:8400000:1,2" as CFString,
-            "AppleUSBAudioEngine:Apogee:Quartet:8400000:1,2" as CFString
+            "BuiltInSpeakerDevice" as CFString,
+            "BuiltInMicrophoneDevice" as CFString
         ))
+        
+        audioPlayThrough.setPeakCallback { peak in
+            print(peak)
+        }
         
         XCTAssert(noErr == audioPlayThrough.start())
         
@@ -38,5 +42,7 @@ final class TranslateUIDToDeviceTests: XCTestCase {
         // This is an example of a functional test case.
         // Use XCTAssert and related functions to verify your tests produce the correct
         // results.
+        
+        
     }
 }

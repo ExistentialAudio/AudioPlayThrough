@@ -57,4 +57,9 @@
     audioPlayThrough->monoInput = isMono;
 }
 
+- (void)setPeakCallback:(void(*)(Float32 peak))peakCallback {
+    
+    audioPlayThrough->peakCallback = peakCallback;
+};
+
 @end

@@ -17,6 +17,8 @@
 -(OSStatus) stop;
 -(void) setIsMono:(Boolean) isMono;
 
+- (void)setPeakCallback:(void(*)(Float32 peak))peakCallback;
+
 @end
 
 
