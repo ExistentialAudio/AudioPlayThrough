@@ -118,6 +118,7 @@ OSStatus AudioPlayThrough::start()
         
         if (inputAudioDeviceID == 0) {
             std::cout<< "Unable to start AudioPlayThrough. Invalid input device." << std::endl;
+            CFShow(inputAudioDeviceUID);
             status = kAudioHardwareBadDeviceError;
             return;
         }
@@ -126,6 +127,7 @@ OSStatus AudioPlayThrough::start()
         
         if (outputAudioDeviceID == 0) {
             std::cout<< "Unable to start AudioPlayThrough. Invalid output device: " << std::endl;
+            CFShow(outputAudioDeviceUID);
             status = kAudioHardwareBadDeviceError;
             return;
         }
@@ -901,6 +903,12 @@ OSStatus AudioPlayThrough::addInputListener(){
             checkStatus(AudioObjectAddPropertyListener(streams[i], &theAddress, streamListenerProc, this));
         }
     }
+    
+    theAddress.mSelector = kAudioDevicePropertyBufferSize;
+    theAddress.mScope = kAudioObjectPropertyScopeWildcard;
+    theAddress.mElement = kAudioObjectPropertyElementWildcard;
+    
+    checkStatus(AudioObjectAddPropertyListener(inputAudioDeviceID, &theAddress, streamListenerProc, this));
 
     return noErr;
 }
@@ -932,6 +940,12 @@ OSStatus AudioPlayThrough::removeInputListener(){
             checkStatus(AudioObjectRemovePropertyListener(streams[i], &theAddress, streamListenerProc, this));
         }
     }
+    
+    theAddress.mSelector = kAudioDevicePropertyBufferSize;
+    theAddress.mScope = kAudioObjectPropertyScopeWildcard;
+    theAddress.mElement = kAudioObjectPropertyElementWildcard;
+    
+    checkStatus(AudioObjectRemovePropertyListener(inputAudioDeviceID, &theAddress, streamListenerProc, this));
 
     return noErr;
 }
@@ -963,6 +977,12 @@ OSStatus AudioPlayThrough::addOutputListener(){
             checkStatus(AudioObjectAddPropertyListener(streams[i], &theAddress, streamListenerProc, this));
         }
     }
+    
+    theAddress.mSelector = kAudioDevicePropertyBufferSize;
+    theAddress.mScope = kAudioObjectPropertyScopeWildcard;
+    theAddress.mElement = kAudioObjectPropertyElementWildcard;
+    
+    checkStatus(AudioObjectAddPropertyListener(outputAudioDeviceID, &theAddress, streamListenerProc, this));
 
     return noErr;
 }
@@ -994,13 +1014,19 @@ OSStatus AudioPlayThrough::removeOutputListener(){
             checkStatus(AudioObjectRemovePropertyListener(streams[i], &theAddress, streamListenerProc, this));
         }
     }
+    
+    theAddress.mSelector = kAudioDevicePropertyBufferSize;
+    theAddress.mScope = kAudioObjectPropertyScopeWildcard;
+    theAddress.mElement = kAudioObjectPropertyElementWildcard;
+    
+    checkStatus(AudioObjectRemovePropertyListener(outputAudioDeviceID, &theAddress, streamListenerProc, this));
 
     return noErr;
 }
 
 OSStatus AudioPlayThrough::addDeviceIsAliveListener(AudioDeviceID audioDeviceID){
 
-    // Remove any listeners first. 
+    // Remove any listeners first.
     removeDeviceIsAliveListener(audioDeviceID);
     
     AudioObjectPropertyAddress theAddress = { kAudioDevicePropertyDeviceIsAlive,
