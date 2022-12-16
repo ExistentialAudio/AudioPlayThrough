@@ -85,7 +85,7 @@ OSStatus AudioPlayThrough::setup(){
     checkStatus(setupAudioFormats());
     checkStatus(setupInput(inputAudioDeviceID));
     checkStatus(setupVarispeed());
-    //checkStatus(setupAudioUnit());
+    checkStatus(setupAudioUnit());
     checkStatus(setupOutput(outputAudioDeviceID));
     checkStatus(setupConnections());
     checkStatus(setupBuffers());
@@ -99,8 +99,6 @@ OSStatus AudioPlayThrough::setup(){
 
 OSStatus AudioPlayThrough::start()
 {
-    
-//    stop()
 
     
     __block OSStatus status = noErr;
@@ -798,22 +796,22 @@ OSStatus AudioPlayThrough::setupConnections(){
     connection.destInputNumber = 0;
     connection.sourceOutputNumber = 0;
     
-    checkStatus(AudioUnitSetProperty(outputAudioUnit,
+    checkStatus(AudioUnitSetProperty(audioUnit,
                               kAudioUnitProperty_MakeConnection,
                               kAudioUnitScope_Input,
                               0,
                               &connection,
                               sizeof(connection)));
     
-//
-//    connection.sourceAudioUnit = audioUnit;
-//
-//    checkStatus(AudioUnitSetProperty(outputAudioUnit,
-//                              kAudioUnitProperty_MakeConnection,
-//                              kAudioUnitScope_Input,
-//                              0,
-//                              &connection,
-//                              sizeof(connection)));
+
+    connection.sourceAudioUnit = audioUnit;
+
+    checkStatus(AudioUnitSetProperty(outputAudioUnit,
+                              kAudioUnitProperty_MakeConnection,
+                              kAudioUnitScope_Input,
+                              0,
+                              &connection,
+                              sizeof(connection)));
 
     
     return noErr;
@@ -869,7 +867,7 @@ OSStatus AudioPlayThrough::initializeAudioUnits(){
     // AU needs to be initialized before we start them
     checkStatus(AudioUnitInitialize(inputAudioUnit));
     checkStatus(AudioUnitInitialize(varispeedAudioUnit));
-    //checkStatus(AudioUnitInitialize(audioUnit));
+    checkStatus(AudioUnitInitialize(audioUnit));
     checkStatus(AudioUnitInitialize(outputAudioUnit));
     
     

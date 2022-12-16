@@ -15,6 +15,8 @@
 -(OSStatus) create:(CFStringRef) input :(CFStringRef) output;
 -(OSStatus) start;
 -(OSStatus) stop;
+-(void) setAudioUnit:(AudioComponentDescription) audioComponentDescription;
+-(void) bypassAudioUnit:(bool) value;
 -(void) setIsMono:(Boolean) isMono;
 
 - (void)setPeakCallback:(void(*)(Float32 peak))peakCallback;

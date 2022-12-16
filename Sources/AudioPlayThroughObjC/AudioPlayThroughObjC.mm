@@ -57,6 +57,14 @@
     audioPlayThrough->monoInput = isMono;
 }
 
+-(void) setAudioUnit:(AudioComponentDescription) audioComponentDescription {
+    audioPlayThrough->setAudioUnit(audioComponentDescription);
+}
+
+-(void) bypassAudioUnit:(bool) value {
+    audioPlayThrough->bypassAudioUnit(value);
+}
+
 - (void)setPeakCallback:(void(*)(Float32 peak))peakCallback {
     
     audioPlayThrough->peakCallback = peakCallback;
