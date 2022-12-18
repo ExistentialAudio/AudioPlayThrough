@@ -16,7 +16,7 @@
 
 -(id)init {
     self = [super init];
-    audioPlayThrough = NULL;
+    //audioPlayThrough = NULL;
     return self;
 }
 
@@ -57,16 +57,28 @@
     audioPlayThrough->monoInput = isMono;
 }
 
--(void) setAudioUnit:(AudioComponentDescription) audioComponentDescription {
-    audioPlayThrough->setAudioUnit(audioComponentDescription);
+-(void) setAudioUnit:(AudioUnit) audioUnit {
+    if (audioPlayThrough == NULL)
+    {
+        audioPlayThrough =  new AudioPlayThrough();
+    }
+    
+    audioPlayThrough->setAudioUnit(audioUnit);
 }
 
 -(void) bypassAudioUnit:(bool) value {
+    if (audioPlayThrough == NULL)
+    {
+        audioPlayThrough =  new AudioPlayThrough();
+    }
     audioPlayThrough->bypassAudioUnit(value);
 }
 
 - (void)setPeakCallback:(void(*)(Float32 peak))peakCallback {
-    
+    if (audioPlayThrough == NULL)
+    {
+        audioPlayThrough =  new AudioPlayThrough();
+    }
     audioPlayThrough->peakCallback = peakCallback;
 };
 

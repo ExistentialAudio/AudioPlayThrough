@@ -45,7 +45,7 @@ OSStatus AudioPlayThrough::instantiateAudioUnit(AudioUnit audioUnit, AudioCompon
             std::cout << "Unable to instantiate HALOutput AudioComponent. \n" << std::endl;
             abort();
         }
-        audioUnit = audioUnit;
+        //audioUnit = audioUnit;
     });
     
     return noErr;
@@ -728,8 +728,8 @@ OSStatus AudioPlayThrough::setupVarispeed(){
     return noErr;
 };
 
-void AudioPlayThrough::setAudioUnit(AudioComponentDescription audioComponentDescription){
-    memcpy(&this->audioComponentDescription, &audioComponentDescription, sizeof(audioComponentDescription));
+void AudioPlayThrough::setAudioUnit(AudioUnit audioUnit){
+    this->audioUnit = audioUnit;
 };
 
 void AudioPlayThrough::bypassAudioUnit(UInt32 value){
@@ -739,34 +739,6 @@ void AudioPlayThrough::bypassAudioUnit(UInt32 value){
 
 OSStatus AudioPlayThrough::setupAudioUnit(){
     
-//    if (audioComponentDescription.componentType == 0) {
-//        printf("audioComponentDescription not set. Using a delay by default.");
-//
-//        audioComponentDescription.componentType = kAudioUnitType_Effect;
-//        audioComponentDescription.componentSubType = kAudioUnitSubType_Delay;
-//        audioComponentDescription.componentManufacturer = kAudioUnitManufacturer_Apple;
-//        audioComponentDescription.componentFlags = 0;
-//        audioComponentDescription.componentFlagsMask = 0;
-//    }
-    
-    AudioComponentDescription desc;
-    desc.componentType = kAudioUnitType_Effect;
-    desc.componentSubType = kAudioUnitSubType_Delay;
-    desc.componentManufacturer = kAudioUnitManufacturer_Apple;
-    desc.componentFlags = 0;
-    desc.componentFlagsMask = 0;
-    
-    AudioComponent comp;
-    //Finds a component that meets the desc spec's
-    comp = AudioComponentFindNext(NULL, &desc);
-    if (comp == NULL) {
-        printf("Could not find audio component.\n");
-        exit (-1);
-        
-    };
-    
-    //gains access to the services provided by the component
-    checkStatus(AudioComponentInstanceNew(comp, &audioUnit));
     
     // Set the format
     AudioStreamBasicDescription asbd;
@@ -777,13 +749,13 @@ OSStatus AudioPlayThrough::setupAudioUnit(){
     asbd.mSampleRate = inputAudioStreamBasicDescription.mSampleRate;
     asbd.mChannelsPerFrame = inputAudioStreamBasicDescription.mChannelsPerFrame;
     checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &asbd, propertySize));
-    
+
     // Set the output to the output sample rate.
     asbd.mSampleRate = outputAudioStreamBasicDescription.mSampleRate;
     asbd.mChannelsPerFrame = outputAudioStreamBasicDescription.mChannelsPerFrame;
     checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 0, &asbd, propertySize));
     
-    bypassAudioUnit(1);
+    bypassAudioUnit(0);
     
     return noErr;
 };

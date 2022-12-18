@@ -15,7 +15,7 @@
 -(OSStatus) create:(CFStringRef) input :(CFStringRef) output;
 -(OSStatus) start;
 -(OSStatus) stop;
--(void) setAudioUnit:(AudioComponentDescription) audioComponentDescription;
+-(void) setAudioUnit:(AudioUnit) audioUnit;
 -(void) bypassAudioUnit:(bool) value;
 -(void) setIsMono:(Boolean) isMono;
 

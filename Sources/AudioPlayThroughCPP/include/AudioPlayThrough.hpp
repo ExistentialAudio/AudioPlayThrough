@@ -100,7 +100,7 @@ public:
     OSStatus create(CFStringRef input, CFStringRef output);
     OSStatus start();
     OSStatus stop();
-    void setAudioUnit(AudioComponentDescription audioComponentDescription);
+    void setAudioUnit(AudioUnit audioUnit);
     void bypassAudioUnit(UInt32 value);
     ~AudioPlayThrough();
     
