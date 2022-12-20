@@ -82,7 +82,7 @@
     audioPlayThrough->peakCallback = peakCallback;
 };
 
--(void)isRunning {
+-(Boolean)isRunning {
     audioPlayThrough->isRunning();
 }
 
