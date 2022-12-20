@@ -90,7 +90,7 @@ class AudioPlayThrough {
     Float64 inputFrameSize = 0;
     Float64 outputFrameSize = 0;
     
-    Boolean isRunning = false;
+    Boolean _isRunning = false;
     
     dispatch_queue_t queue;
     char queueName[100];
@@ -107,6 +107,10 @@ public:
     Boolean monoInput = false;
     
     void (*peakCallback)(Float32 peak) = NULL;
+    
+    Boolean isRunning() {
+        return _isRunning;
+    }
     
 private:
     OSStatus setup();

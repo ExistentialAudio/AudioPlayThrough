@@ -151,7 +151,7 @@ OSStatus AudioPlayThrough::start()
             return;
         }
         
-        isRunning = true;
+        _isRunning = true;
         
     });
     
@@ -163,7 +163,7 @@ OSStatus AudioPlayThrough::stop()
 
     __block OSStatus status = noErr;
     
-    if (isRunning)
+    if (_isRunning)
     {
         dispatch_sync(queue, ^{
         
@@ -179,7 +179,7 @@ OSStatus AudioPlayThrough::stop()
                 return;
             }
             
-            isRunning = false;
+            _isRunning = false;
             
         });
     }
@@ -243,7 +243,7 @@ OSStatus AudioPlayThrough::inputProc(void *inRefCon, AudioUnitRenderActionFlags 
         float peak;
         vDSP_maxv((Float32*)This->inputBuffer->mBuffers[0].mData, 1, &peak, inNumberFrames);
         dispatch_async(dispatch_get_main_queue(), ^{
-            if (This->isRunning)
+            if (This->_isRunning)
             {
                 This->peakCallback(peak);
             }
@@ -276,7 +276,7 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
     
     AudioPlayThrough* This = (AudioPlayThrough*)inRefCon;
     
-    if (!This->isRunning){
+    if (!This->_isRunning){
         MakeBufferSilent (ioData);
         return noErr;
     }
@@ -435,7 +435,7 @@ OSStatus AudioPlayThrough::streamListenerProc(AudioObjectID inObjectID, UInt32 i
         
         AudioPlayThrough* This = (AudioPlayThrough*)inClientData;
         
-        if (This->isRunning)
+        if (This->_isRunning)
         {
             This->takedown();
             This->start();
