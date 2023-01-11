@@ -12,8 +12,6 @@ AudioPlayThrough::AudioPlayThrough()
 {
     std::snprintf(queueName, 100, "AudioPlayThroughQueue_%d", rand());
     
-    printf("New queue created named %s.\n", queueName);
-    
     queue = dispatch_queue_create(queueName, NULL);
     
     
@@ -112,8 +110,6 @@ OSStatus AudioPlayThrough::start()
         
         inputAudioDeviceID = getAudioDeviceID(inputAudioDeviceUID);
         
-        printf("inputAudioDeviceID: %i \n", inputAudioDeviceID);
-        
         if (inputAudioDeviceID == 0) {
             std::cout<< "Unable to start AudioPlayThrough. Invalid input device." << std::endl;
             CFShow(inputAudioDeviceUID);
@@ -165,6 +161,8 @@ OSStatus AudioPlayThrough::stop()
     
     if (_isRunning)
     {
+        _isRunning = false;
+        
         dispatch_sync(queue, ^{
         
             if (inputAudioUnit != NULL) status = (AudioOutputUnitStop(inputAudioUnit));
@@ -178,8 +176,6 @@ OSStatus AudioPlayThrough::stop()
             {
                 return;
             }
-            
-            _isRunning = false;
             
         });
         
@@ -200,6 +196,10 @@ AudioPlayThrough::~AudioPlayThrough()
 OSStatus AudioPlayThrough::inputProc(void *inRefCon, AudioUnitRenderActionFlags *ioActionFlags, const AudioTimeStamp *inTimeStamp, UInt32 inBusNumber, UInt32 inNumberFrames, AudioBufferList *ioData){
     
     AudioPlayThrough* This = (AudioPlayThrough*)inRefCon;
+    
+    if (!This->_isRunning){
+        return noErr;
+    }
     
     This->inputFrameSize = inNumberFrames;
     
@@ -253,18 +253,6 @@ OSStatus AudioPlayThrough::inputProc(void *inRefCon, AudioUnitRenderActionFlags 
     }
     
     This->writeLocation = inTimeStamp->mSampleTime + inNumberFrames;
-
-    
-//    // Sine Wave for Testing
-//    for (UInt32 frame = 0; frame < inNumberFrames; frame ++)
-//    {
-//
-//        for (UInt32 channel = 0; channel < channels; channel++)
-//        {
-//            UInt64 ringBufferLocation = ((UInt64)(inTimeStamp->mSampleTime + frame) % This->ringBufferFrameSize) + This->ringBufferFrameSize * channel;
-//            This->ringBuffer[ringBufferLocation] = 0.5*sin(2*M_PI*(inTimeStamp->mSampleTime + frame)*220/48000);
-//        }
-//    }
     
     return noErr;
 }
@@ -330,7 +318,6 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
         // calculate the offset
         This->inToOutSampleOffset = This->writeLocation - This->outputFrameSize - This->inputFrameSize - inTimeStamp->mSampleTime;
         MakeBufferSilent (ioData);
-        //printf("%f %f %f %f %f %f %f \n" , This->inToOutSampleOffset, This->readLocation, This->writeLocation, This->outputFrameSize, This->inputFrameSize, inTimeStamp->mSampleTime, rate);
         return  noErr;
     }
     
@@ -886,6 +873,10 @@ OSStatus AudioPlayThrough::addInputListener(){
 }
 
 OSStatus AudioPlayThrough::removeInputListener(){
+    
+    if (inputAudioDeviceID == 0) {
+        return 0;
+    }
 
     AudioObjectPropertyAddress theAddress = { kAudioDevicePropertyStreams,
                                               kAudioObjectPropertyScopeGlobal,
@@ -960,6 +951,10 @@ OSStatus AudioPlayThrough::addOutputListener(){
 }
 
 OSStatus AudioPlayThrough::removeOutputListener(){
+    
+    if (outputAudioDeviceID == 0) {
+        return 0;
+    }
 
     AudioObjectPropertyAddress theAddress = { kAudioDevicePropertyStreams,
                                               kAudioObjectPropertyScopeGlobal,
@@ -1011,6 +1006,10 @@ OSStatus AudioPlayThrough::addDeviceIsAliveListener(AudioDeviceID audioDeviceID)
 }
 
 OSStatus AudioPlayThrough::removeDeviceIsAliveListener(AudioDeviceID audioDeviceID){
+    
+    if (audioDeviceID == 0) {
+        return 0;
+    }
 
     AudioObjectPropertyAddress theAddress = { kAudioDevicePropertyDeviceIsAlive,
                                               kAudioObjectPropertyScopeGlobal,
@@ -1067,6 +1066,9 @@ OSStatus AudioPlayThrough::takedown(){
         AudioUnitUninitialize(outputAudioUnit);
         AudioUnitUninitialize(varispeedAudioUnit);
         AudioUnitUninitialize(audioUnit);
+        
+        inputAudioDeviceID = 0;
+        outputAudioDeviceID = 0;
         
     });
     
