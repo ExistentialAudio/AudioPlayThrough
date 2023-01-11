@@ -28,9 +28,6 @@ let package = Package(
         .target(
             name: "RequestMicrophoneAuthorization",
             dependencies: []),
-        .testTarget(
-            name: "AudioPlayThroughTests",
-            dependencies: ["AudioPlayThroughObjC"]),
     ],
     cLanguageStandard: .c11,
     cxxLanguageStandard: .cxx14
