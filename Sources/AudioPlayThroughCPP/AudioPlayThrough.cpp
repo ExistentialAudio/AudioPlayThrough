@@ -53,8 +53,6 @@ OSStatus AudioPlayThrough::instantiateAudioUnit(AudioUnit audioUnit, AudioCompon
 
 OSStatus AudioPlayThrough::create(CFStringRef input, CFStringRef output){
     
-    
-    
     inputAudioDeviceUID = CFStringCreateCopy(NULL, input);;
     outputAudioDeviceUID = CFStringCreateCopy(NULL, output);;
     return noErr;
@@ -113,6 +111,8 @@ OSStatus AudioPlayThrough::start()
         readLocation = 0;
         
         inputAudioDeviceID = getAudioDeviceID(inputAudioDeviceUID);
+        
+        printf("inputAudioDeviceID: %i \n", inputAudioDeviceID);
         
         if (inputAudioDeviceID == 0) {
             std::cout<< "Unable to start AudioPlayThrough. Invalid input device." << std::endl;
@@ -183,9 +183,9 @@ OSStatus AudioPlayThrough::stop()
             
         });
         
-        
-        takedown();
     }
+    
+    takedown();
 
     
     return noErr;
