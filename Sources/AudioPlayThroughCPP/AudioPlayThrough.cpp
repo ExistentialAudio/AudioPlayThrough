@@ -182,9 +182,11 @@ OSStatus AudioPlayThrough::stop()
             _isRunning = false;
             
         });
+        
+        
+        takedown();
     }
-    
-    takedown();
+
     
     return noErr;
 }
