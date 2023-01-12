@@ -16,17 +16,25 @@ Copyright (c) 2021 Devin Roth
 #include <AudioToolbox/AudioToolbox.h>
 #include <RequestMicrophoneAuthorization.h>
 #include <Accelerate/Accelerate.h>
+#include <sys/syslog.h>
+
+#define    DebugMsg(inFormat, ...) \
+if (AudioPlayThrough::shouldPrintToOSLog) \
+{ \
+    syslog(LOG_NOTICE, "VSXSystemwide: AudioPlayThrough:" inFormat " line: %d \n", \
+        ## __VA_ARGS__, \
+        __LINE__\
+        );\
+};
 
 #define checkStatus(status) \
-if(status) {\
+if(status && AudioPlayThrough::shouldPrintToOSLog) {\
     OSStatus error = static_cast<OSStatus>(status);\
-        fprintf(stdout, "CAPlayThrough Error: %X ->  %s:  %d\n",  error,\
-               __FILE__, \
-               __LINE__\
-               );\
-                   fflush(stdout);\
+        syslog(LOG_NOTICE, "VSXSystemwide: AudioPlayThrough Error: %X line: %d\n",  error,\
+            __LINE__\
+            );\
         return status; \
-}
+};
 
 
 class AudioPlayThrough {
@@ -94,6 +102,8 @@ class AudioPlayThrough {
     
     dispatch_queue_t queue;
     char queueName[100];
+    
+    static Boolean shouldPrintToOSLog;
     
 public:
     AudioPlayThrough();

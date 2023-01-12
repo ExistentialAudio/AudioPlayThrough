@@ -8,6 +8,12 @@ Copyright (c) 2021 Devin Roth
 
 #include "AudioPlayThrough.hpp"
 
+#if DEBUG
+Boolean AudioPlayThrough::shouldPrintToOSLog = true;
+#else
+Boolean AudioPlayThrough::shouldPrintToOSLog = true;
+#endif
+
 AudioPlayThrough::AudioPlayThrough()
 {
     std::snprintf(queueName, 100, "AudioPlayThroughQueue_%d", rand());
@@ -32,18 +38,17 @@ OSStatus AudioPlayThrough::instantiateAudioUnit(AudioUnit audioUnit, AudioCompon
     AudioComponent audioComponent = AudioComponentFindNext(NULL, &audioComponentDescription);
     
     if (audioComponent == NULL) {
-        std::cout << "Unable to find HALOutput AudioComponent. \n" << std::endl;
-        abort();
+        DebugMsg("Unable to find HALOutput AudioComponent. \n");
+        return 1234;
     }
 
     AudioComponentInstantiate(audioComponent,
                               kAudioComponentInstantiation_LoadOutOfProcess,
                               ^(AudioComponentInstance audioUnit, OSStatus error) {
         if (error) {
-            std::cout << "Unable to instantiate HALOutput AudioComponent. \n" << std::endl;
+            DebugMsg("Unable to instantiate HALOutput AudioComponent. \n");
             abort();
         }
-        //audioUnit = audioUnit;
     });
     
     return noErr;
@@ -70,7 +75,7 @@ AudioDeviceID AudioPlayThrough::getAudioDeviceID(CFStringRef deviceUID){
     
     if (status)
     {
-        std::cout << "Failed to retrieve AudioDeviceID from UID: " << deviceUID << std::endl;
+        DebugMsg("Failed to retrieve AudioDeviceID from UID.");
     }
     
     return inDeviceID;
@@ -111,8 +116,7 @@ OSStatus AudioPlayThrough::start()
         inputAudioDeviceID = getAudioDeviceID(inputAudioDeviceUID);
         
         if (inputAudioDeviceID == 0) {
-            std::cout<< "Unable to start AudioPlayThrough. Invalid input device." << std::endl;
-            CFShow(inputAudioDeviceUID);
+            DebugMsg("Unable to start AudioPlayThrough. Invalid input device.");
             status = kAudioHardwareBadDeviceError;
             return;
         }
@@ -120,8 +124,7 @@ OSStatus AudioPlayThrough::start()
         outputAudioDeviceID = getAudioDeviceID(outputAudioDeviceUID);
         
         if (outputAudioDeviceID == 0) {
-            std::cout<< "Unable to start AudioPlayThrough. Invalid output device: " << std::endl;
-            CFShow(outputAudioDeviceUID);
+            DebugMsg("Unable to start AudioPlayThrough. Invalid output device.");
             status = kAudioHardwareBadDeviceError;
             return;
         }
@@ -130,7 +133,7 @@ OSStatus AudioPlayThrough::start()
         setup();
 
         if (inputAudioUnit == NULL || outputAudioUnit == NULL) {
-            printf("Unable to start AudioPlayThrough. AudioPlayThrough is not setup. \n");
+            DebugMsg("Unable to start AudioPlayThrough. AudioPlayThrough is not setup. \n");
             status = kAudioUnitErr_Initialized;
             return;
         }
@@ -147,6 +150,7 @@ OSStatus AudioPlayThrough::start()
             return;
         }
         
+        DebugMsg("AudioPlayThrough Started.");
         _isRunning = true;
         
     });
@@ -304,7 +308,7 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
     This->outputFrameSize = inNumberFrames;
     
     
-    //printf("Write: %f Read: %f Offset: %f BufferSize: %f\n", This->writeLocation, This->readLocation, This->writeLocation - This->readLocation, This->outputFrameSize);
+    //DebugMsg("Write: %f Read: %f Offset: %f BufferSize: %f\n", This->writeLocation, This->readLocation, This->writeLocation - This->readLocation, This->outputFrameSize);
     
     if (This->writeLocation == 0){
         // input hasn't run yet -> silence
@@ -326,16 +330,14 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
     This->readLocation = inTimeStamp->mSampleTime + This->inToOutSampleOffset;
     
     if (This->readLocation > This->writeLocation - inNumberFrames) {
-        //printf("%f %f %f %f %f %f %f \n" , This->inToOutSampleOffset, This->readLocation, This->writeLocation, This->outputFrameSize, This->inputFrameSize, inTimeStamp->mSampleTime, rate);
-        printf("Trying to read before audio is written. Resetting sync. \n");
+        DebugMsg("Trying to read before audio is written. Resetting sync. \n");
         This->firstOutputTime = -1;
         MakeBufferSilent (ioData);
         return  noErr;
     }
     
     if (This->readLocation < This->writeLocation - This->outputFrameSize*2 - This->inputFrameSize*2) {
-        //printf("%f %f %f %f %f %f %f \n" , This->inToOutSampleOffset, This->readLocation, This->writeLocation, This->outputFrameSize, This->inputFrameSize, inTimeStamp->mSampleTime, rate);
-        printf("Reading is way behind. Resetting sync. \n");
+        DebugMsg("Reading is way behind. Resetting sync. \n");
         This->firstOutputTime = -1;
         MakeBufferSilent (ioData);
         return  noErr;
@@ -355,41 +357,12 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
         // needs to be slower.
         Float64 scale = 0.01 / This->outputFrameSize;
         rate += scale * difference;
-        //printf("Difference %f %f %f\n", difference, scale * difference, rate);
     } else {
         // needs to be faster.
         Float64 scale = 0.005 / This->inputFrameSize;
         rate += scale * difference;
-        //printf("Difference %f %f %f\n", difference, scale * difference, rate);
     }
     
-    // positive number go faster negative number go slower.
-    // - (This->outputFrameSize) = -0.001
-    // 0 = 0
-    // + (This->inputFrameSize) = +0.001
-    
-    // this would be perfect for PID.
-    
-    //0.001-0-0.001
-    
-//    difference * 0.00 * (This->inputFrameSize + This->outputFrameSize)
-//
-//    if (This->readLocation > This->writeLocation - This->outputFrameSize - This->inputFrameSize){
-//
-//        // read a little slower
-//        rate -= 0.0001;
-//        static UInt32 count = 0;
-//        count++;
-//        //printf("Slower Count: %i \n" , count);
-//    }
-//    else
-//    {
-//        // read a little faster
-//        rate += 0.0001;
-//        static UInt32 count = 0;
-//        count++;
-//        //printf("Faster Count: %i \n" , count);
-//    }
     
     // set the rate for the varispeed
     checkStatus(AudioUnitSetParameter(This->varispeedAudioUnit,
@@ -493,19 +466,8 @@ OSStatus AudioPlayThrough::setupInput(AudioDeviceID audioDeviceID){
 
     //gains access to the services provided by the component
     checkStatus(AudioComponentInstanceNew(comp, &audioUnit));
-//
-//
-//    //AUHAL needs to be initialized before anything is done to it
-//    AudioComponentValidate(<#AudioComponent  _Nonnull inComponent#>, <#CFDictionaryRef  _Nullable inValidationParameters#>, <#AudioComponentValidationResult * _Nonnull outValidationResult#>)
-//    checkStatus(AudioUnitInitialize(audioUnit));
-//
+
     instantiateAudioUnit(inputAudioUnit, halAudioComponentDescription);
-//
-//    sleep(1);
-//
-    // Enable input and disable output.
-    
-    
     
     UInt32 enableIO;
     enableIO = 1;
@@ -735,7 +697,7 @@ OSStatus AudioPlayThrough::setupAudioUnit(){
     checkStatus(AudioUnitGetProperty(audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &asbd, &propertySize));
 
     // Set the input to the input sample rate.
-    asbd.mSampleRate = inputAudioStreamBasicDescription.mSampleRate;
+    asbd.mSampleRate = outputAudioStreamBasicDescription.mSampleRate;
     asbd.mChannelsPerFrame = inputAudioStreamBasicDescription.mChannelsPerFrame;
     checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &asbd, propertySize));
 
@@ -1061,14 +1023,13 @@ OSStatus AudioPlayThrough::takedown(){
         removeDeviceIsAliveListener(inputAudioDeviceID);
         removeDeviceIsAliveListener(outputAudioDeviceID);
         
-        // uninitializeaudiounit
+        inputAudioDeviceID = 0;
+        outputAudioDeviceID = 0;
+        
         AudioUnitUninitialize(inputAudioUnit);
         AudioUnitUninitialize(outputAudioUnit);
         AudioUnitUninitialize(varispeedAudioUnit);
         AudioUnitUninitialize(audioUnit);
-        
-        inputAudioDeviceID = 0;
-        outputAudioDeviceID = 0;
         
     });
     
