@@ -690,6 +690,20 @@ void AudioPlayThrough::bypassAudioUnit(UInt32 value){
 
 OSStatus AudioPlayThrough::setupAudioUnit(){
     
+    AudioUnitUninitialize(audioUnit);
+    
+    // Connect the audio units together.
+    AudioUnitConnection connection;
+    connection.sourceAudioUnit = NULL;
+    connection.destInputNumber = 0;
+    connection.sourceOutputNumber = 0;
+    
+    checkStatus(AudioUnitSetProperty(audioUnit,
+                              kAudioUnitProperty_MakeConnection,
+                              kAudioUnitScope_Input,
+                              0,
+                              &connection,
+                              sizeof(connection)));
     
     // Set the format
     AudioStreamBasicDescription asbd;
