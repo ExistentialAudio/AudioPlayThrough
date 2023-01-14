@@ -307,9 +307,6 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
     
     This->outputFrameSize = inNumberFrames;
     
-    
-    //DebugMsg("Write: %f Read: %f Offset: %f BufferSize: %f\n", This->writeLocation, This->readLocation, This->writeLocation - This->readLocation, This->outputFrameSize);
-    
     if (This->writeLocation == 0){
         // input hasn't run yet -> silence
         MakeBufferSilent (ioData);

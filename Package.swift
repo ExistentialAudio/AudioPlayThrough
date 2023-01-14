@@ -13,6 +13,9 @@ let package = Package(
             name: "AudioPlayThroughCPP",
             targets: ["AudioPlayThroughCPP"]),
         .library(
+            name: "AudioPlayThroughC",
+            targets: ["AudioPlayThroughC"]),
+        .library(
             name: "AudioPlayThroughObjC",
             targets: ["AudioPlayThroughObjC"]),
     ],
@@ -22,6 +25,9 @@ let package = Package(
         .target(
             name: "AudioPlayThroughCPP",
             dependencies: ["RequestMicrophoneAuthorization"]),
+        .target(
+            name: "AudioPlayThroughC",
+            dependencies: ["AudioPlayThroughCPP"]),
         .target(
             name: "AudioPlayThroughObjC",
             dependencies: ["AudioPlayThroughCPP"]),
