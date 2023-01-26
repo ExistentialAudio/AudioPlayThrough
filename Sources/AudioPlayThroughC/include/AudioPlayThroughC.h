@@ -5,10 +5,11 @@ extern "C"  {
 #include <CoreAudio/CoreAudio.h>
 #include <AudioToolbox/AudioToolbox.h>
 
-void AudioPlayThroughCreate(CFStringRef inputUID, CFStringRef outputUID);
-void AudioPlayThroughSetAudioUnit(AudioUnit audioUnit);
-OSStatus AudioPlayThroughStart(void);
-OSStatus AudioPlayThroughStop(void);
+void* AudioPlayThroughCreate(CFStringRef inputUID, CFStringRef outputUID);
+OSStatus AudioPlayThroughStart(void* audioPlayThrough);
+OSStatus AudioPlayThroughStop(void* audioPlayThrough);
+void AudioPlayThroughSetPeakCallback(void* audioPlayThrough, void(*peakCallback)(Float32 peak));
+Float32 AudioPlayThroughGetPeak(void* audioPlayThrough);
 
 #ifdef __cplusplus
 }

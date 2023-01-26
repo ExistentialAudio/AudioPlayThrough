@@ -235,7 +235,7 @@ OSStatus AudioPlayThrough::inputProc(void *inRefCon, AudioUnitRenderActionFlags 
     {
         for (UInt32 frame = 0; frame < inNumberFrames; frame ++){
             for (UInt32 channel = 0; channel < channels; channel++){
-                Float32* buffer = (Float32*)This->inputBuffer->mBuffers[channel].mData;
+                Float32* buffer = (Float32*)This->inputBuffer->mBuffers[This->monoInput ? 0 : channel].mData;
                 UInt64 ringBufferLocation = ((UInt64)(inTimeStamp->mSampleTime + frame) % This->ringBufferFrameSize) + This->ringBufferFrameSize * channel;
                 This->ringBuffer[ringBufferLocation] = buffer[frame];
                 
@@ -244,17 +244,27 @@ OSStatus AudioPlayThrough::inputProc(void *inRefCon, AudioUnitRenderActionFlags 
     }
     
 
-    if (This->peakCallback != NULL)
+    Float32 peak = 0;
+    for (UInt32 frame = 0; frame < inNumberFrames; frame ++)
     {
-        float peak;
-        vDSP_maxv((Float32*)This->inputBuffer->mBuffers[0].mData, 1, &peak, inNumberFrames);
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (This->_isRunning)
-            {
-                This->peakCallback(peak);
-            }
-        });
+        if (((Float32*)This->inputBuffer->mBuffers[0].mData)[frame] > peak)
+        {
+            peak = ((Float32*)This->inputBuffer->mBuffers[0].mData)[frame];
+        }
     }
+    if (peak > 1)
+    {
+        peak = 1;
+    }
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        This->peak = peak;
+        
+        if (This->_isRunning && This->peakCallback != NULL)
+        {
+            This->peakCallback(This->peak);
+        }
+    });
     
     This->writeLocation = inTimeStamp->mSampleTime + inNumberFrames;
     
@@ -687,6 +697,29 @@ void AudioPlayThrough::bypassAudioUnit(UInt32 value){
 
 OSStatus AudioPlayThrough::setupAudioUnit(){
     
+    
+    if (audioUnit == NULL) {
+            
+        AudioComponentDescription desc;
+        desc.componentType = kAudioUnitType_Effect;
+        desc.componentSubType = kAudioUnitSubType_Delay;
+        desc.componentManufacturer = kAudioUnitManufacturer_Apple;
+        desc.componentFlags = 0;
+        desc.componentFlagsMask = 0;
+        
+        AudioComponent comp;
+        //Finds a component that meets the desc spec's
+        comp = AudioComponentFindNext(NULL, &desc);
+        if (comp == NULL) {
+            printf("Could not find audio component.\n");
+            exit (-1);
+            
+        };
+        
+        checkStatus(AudioComponentInstanceNew(comp, &audioUnit));
+    }
+    
+    
     AudioUnitUninitialize(audioUnit);
     
     // Connect the audio units together.
@@ -717,7 +750,7 @@ OSStatus AudioPlayThrough::setupAudioUnit(){
     asbd.mChannelsPerFrame = outputAudioStreamBasicDescription.mChannelsPerFrame;
     checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 0, &asbd, propertySize));
     
-    bypassAudioUnit(0);
+    bypassAudioUnit(1);
     
     return noErr;
 };

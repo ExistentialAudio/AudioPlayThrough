@@ -8,24 +8,30 @@
 #include "AudioPlayThroughC.h"
 #include "AudioPlayThrough.hpp"
 
-AudioPlayThrough audioPlayThrough = AudioPlayThrough();
-
-void AudioPlayThroughCreate(CFStringRef inputUID, CFStringRef outputUID)
+void* AudioPlayThroughCreate(CFStringRef inputUID, CFStringRef outputUID)
 {
-    audioPlayThrough.create(inputUID, outputUID);
+    AudioPlayThrough* audioPlayThrough = new AudioPlayThrough();
+    audioPlayThrough->create(inputUID, outputUID);
+    return audioPlayThrough;
+    
 };
 
-void AudioPlayThroughSetAudioUnit(AudioUnit audioUnit)
+OSStatus AudioPlayThroughStart(void* audioPlayThrough)
 {
-    audioPlayThrough.setAudioUnit(audioUnit);
+    return ((AudioPlayThrough*)audioPlayThrough)->start();
 };
 
-OSStatus AudioPlayThroughStart(void)
+OSStatus AudioPlayThroughStop(void* audioPlayThrough)
 {
-    return audioPlayThrough.start();
+    return ((AudioPlayThrough*)audioPlayThrough)->stop();
 };
 
-OSStatus AudioPlayThroughStop(void)
+void AudioPlayThroughSetPeakCallback(void* audioPlayThrough, void(*peakCallback)(Float32 peak))
 {
-    return audioPlayThrough.stop();
+    ((AudioPlayThrough*)audioPlayThrough)->peakCallback = peakCallback;
+};
+
+Float32 AudioPlayThroughGetPeak(void* audioPlayThrough)
+{
+    return ((AudioPlayThrough*)audioPlayThrough)->getPeak();
 };

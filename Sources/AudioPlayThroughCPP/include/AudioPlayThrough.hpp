@@ -21,7 +21,7 @@ Copyright (c) 2021 Devin Roth
 #define    DebugMsg(inFormat, ...) \
 if (AudioPlayThrough::shouldPrintToOSLog) \
 { \
-    syslog(LOG_NOTICE, "VSXSystemwide: AudioPlayThrough:" inFormat " line: %d \n", \
+    syslog(LOG_NOTICE, "AudioPlayThrough:" inFormat " line: %d \n", \
         ## __VA_ARGS__, \
         __LINE__\
         );\
@@ -105,6 +105,8 @@ class AudioPlayThrough {
     
     static Boolean shouldPrintToOSLog;
     
+    Float32 peak;
+    
 public:
     AudioPlayThrough();
     OSStatus create(CFStringRef input, CFStringRef output);
@@ -114,7 +116,11 @@ public:
     void bypassAudioUnit(UInt32 value);
     ~AudioPlayThrough();
     
-    Boolean monoInput = false;
+    Float32 getPeak() {
+        return peak;
+    };
+    
+    Boolean monoInput = true;
     
     void (*peakCallback)(Float32 peak) = NULL;
     
