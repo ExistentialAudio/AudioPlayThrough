@@ -951,7 +951,8 @@ OSStatus AudioPlayThrough::addOutputListener(){
     theAddress.mScope = kAudioObjectPropertyScopeWildcard;
     theAddress.mElement = kAudioObjectPropertyElementWildcard;
     
-    checkStatus(AudioObjectAddPropertyListener(outputAudioDeviceID, &theAddress, streamListenerProc, this));
+    // non fatal 
+    AudioObjectAddPropertyListener(outputAudioDeviceID, &theAddress, streamListenerProc, this);
 
     return noErr;
 }
