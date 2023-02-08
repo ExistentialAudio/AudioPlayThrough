@@ -30,7 +30,7 @@ if (AudioPlayThrough::shouldPrintToOSLog) \
 #define checkStatus(status) \
 if(status && AudioPlayThrough::shouldPrintToOSLog) {\
     OSStatus error = static_cast<OSStatus>(status);\
-        syslog(LOG_NOTICE, "VSXSystemwide: AudioPlayThrough Error: %X line: %d\n",  error,\
+        syslog(LOG_NOTICE, "AudioPlayThrough Error: %X line: %d\n",  error,\
             __LINE__\
             );\
         return status; \
