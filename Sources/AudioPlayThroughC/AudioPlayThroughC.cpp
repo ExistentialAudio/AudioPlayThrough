@@ -35,3 +35,7 @@ Float32 AudioPlayThroughGetPeak(void* audioPlayThrough)
 {
     return ((AudioPlayThrough*)audioPlayThrough)->getPeak();
 };
+
+const char* GetBuildDate(){
+   return __DATE__;
+}
