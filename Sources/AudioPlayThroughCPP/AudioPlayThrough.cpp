@@ -721,7 +721,7 @@ OSStatus AudioPlayThrough::setMatrixLevel(UInt32 inputChannel, UInt32 outputChan
     if (inputChannel > dimensions[0]) { return noErr; }
     if (outputChannel > dimensions[1]) { return noErr; }
     
-    matrixLevels[inputChannel][outputChannel] = 1.0;
+    matrixLevels[inputChannel][outputChannel] = level;
     
     checkStatus(AudioUnitSetProperty(multiChannelMixerAudioUnit, kAudioUnitProperty_MatrixLevels, kAudioUnitScope_Global, 0, &matrixLevels, size))
     
