@@ -55,9 +55,9 @@ class AudioPlayThrough {
         .componentFlags = 0,
         .componentFlagsMask = 0};
     
-    AudioComponentDescription multiChannelMixerAudioComponentDescription = {
+    AudioComponentDescription matrixMixerAudioComponentDescription = {
         .componentType = kAudioUnitType_Mixer,
-        .componentSubType = kAudioUnitSubType_MultiChannelMixer,
+        .componentSubType = kAudioUnitSubType_MatrixMixer,
         .componentManufacturer = kAudioUnitManufacturer_Apple,
         .componentFlags = 0,
         .componentFlagsMask = 0};
@@ -128,6 +128,8 @@ public:
         return _isRunning;
     }
     
+    OSStatus setMatrixLevel(UInt32 inputChannel, UInt32 outputChannel, Float32 level);
+    
 private:
     OSStatus setup();
     
@@ -137,6 +139,7 @@ private:
     OSStatus setupAudioFormats();
     OSStatus setupInput(AudioDeviceID audioDeviceID);
     OSStatus setupVarispeed();
+    OSStatus setupMultiChannelMixer();
     OSStatus setupAudioUnit();
     OSStatus setupOutput(AudioDeviceID audioDeviceID);
     OSStatus setupBuffers();
@@ -161,6 +164,8 @@ private:
     static OSStatus outputProc(void *inRefCon, AudioUnitRenderActionFlags *ioActionFlags, const AudioTimeStamp *inTimeStamp, UInt32 inBusNumber, UInt32 inNumberFrames, AudioBufferList *ioData);
     
     static OSStatus streamListenerProc(AudioObjectID inObjectID, UInt32 inNumberAddresses, const AudioObjectPropertyAddress *inAddresses, void *inClientData);
+    
+
 };
 
 

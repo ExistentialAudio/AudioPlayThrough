@@ -36,6 +36,11 @@ Float32 AudioPlayThroughGetPeak(void* audioPlayThrough)
     return ((AudioPlayThrough*)audioPlayThrough)->getPeak();
 };
 
+OSStatus AudioPlayThroughSetMatrixLevel(void* audioPlayThrough, UInt32 inputChannel, UInt32 outputChannel, Float32 level)
+{
+    return ((AudioPlayThrough*)audioPlayThrough)->setMatrixLevel(inputChannel, outputChannel, level);
+};
+
 const char* GetBuildDate(){
    return __DATE__;
 }

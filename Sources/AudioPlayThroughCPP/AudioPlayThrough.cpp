@@ -28,7 +28,7 @@ AudioPlayThrough::AudioPlayThrough()
     instantiateAudioUnit(inputAudioUnit, halAudioComponentDescription);
     instantiateAudioUnit(varispeedAudioUnit, varispeedAudioComponentDescription);
     instantiateAudioUnit(newTimePitchAudioUnit, newTimePitchAudioComponentDescription);
-    instantiateAudioUnit(multiChannelMixerAudioUnit, multiChannelMixerAudioComponentDescription);
+    instantiateAudioUnit(multiChannelMixerAudioUnit, matrixMixerAudioComponentDescription);
     instantiateAudioUnit(outputAudioUnit, halAudioComponentDescription);
     
 }
@@ -85,6 +85,7 @@ OSStatus AudioPlayThrough::setup(){
     
     checkStatus(setupAudioFormats());
     checkStatus(setupInput(inputAudioDeviceID));
+    checkStatus(setupMultiChannelMixer());
     checkStatus(setupVarispeed());
     checkStatus(setupAudioUnit());
     checkStatus(setupOutput(outputAudioDeviceID));
@@ -219,27 +220,12 @@ OSStatus AudioPlayThrough::inputProc(void *inRefCon, AudioUnitRenderActionFlags 
     UInt32 channels = This->inputBuffer->mNumberBuffers;
     
     
-    // If the input is mono we are copying the audio to both channel 1 and 2.
-    if (This->monoInput)
-    {
-        for (UInt32 frame = 0; frame < inNumberFrames; frame ++){
-            Float32* buffer = (Float32*)This->inputBuffer->mBuffers[0].mData;
-            UInt64 ringBufferLocation = ((UInt64)(inTimeStamp->mSampleTime + frame) % This->ringBufferFrameSize) + This->ringBufferFrameSize * 0;
+    for (UInt32 frame = 0; frame < inNumberFrames; frame ++){
+        for (UInt32 channel = 0; channel < channels; channel++){
+            Float32* buffer = (Float32*)This->inputBuffer->mBuffers[channel].mData;
+            UInt64 ringBufferLocation = ((UInt64)(inTimeStamp->mSampleTime + frame) % This->ringBufferFrameSize) + This->ringBufferFrameSize * channel;
             This->ringBuffer[ringBufferLocation] = buffer[frame];
-            ringBufferLocation = ((UInt64)(inTimeStamp->mSampleTime + frame) % This->ringBufferFrameSize) + This->ringBufferFrameSize * 1;
-            This->ringBuffer[ringBufferLocation] = buffer[frame];
-        }
-    }
-    // Both input and output are 2 or more channels.
-    else
-    {
-        for (UInt32 frame = 0; frame < inNumberFrames; frame ++){
-            for (UInt32 channel = 0; channel < channels; channel++){
-                Float32* buffer = (Float32*)This->inputBuffer->mBuffers[This->monoInput ? 0 : channel].mData;
-                UInt64 ringBufferLocation = ((UInt64)(inTimeStamp->mSampleTime + frame) % This->ringBufferFrameSize) + This->ringBufferFrameSize * channel;
-                This->ringBuffer[ringBufferLocation] = buffer[frame];
-                
-            }
+            
         }
     }
     
@@ -448,9 +434,9 @@ OSStatus AudioPlayThrough::setupAudioFormats(){
     checkStatus(AudioObjectGetPropertyData(streamAudioDeviceID, &inAddress, 0, NULL, &size, &outputAudioStreamBasicDescription));
     
     // Everything works better if we stick with stereo.
-    inputAudioStreamBasicDescription.mChannelsPerFrame = 2;
+    //inputAudioStreamBasicDescription.mChannelsPerFrame = 2;
     
-    outputAudioStreamBasicDescription.mChannelsPerFrame = 2;
+    //outputAudioStreamBasicDescription.mChannelsPerFrame = 2;
     
     return noErr;
 }
@@ -630,6 +616,118 @@ OSStatus AudioPlayThrough::setupOutput(AudioDeviceID audioDeviceID){
     return noErr;
 }
 
+OSStatus AudioPlayThrough::setupMultiChannelMixer(){
+    AudioUnit& audioUnit = multiChannelMixerAudioUnit;
+    
+    // load the audio unit
+    AudioComponent comp;
+    //Finds a component that meets the desc spec's
+    comp = AudioComponentFindNext(NULL, &matrixMixerAudioComponentDescription);
+    if (comp == NULL) exit (-1);
+    
+    //gains access to the services provided by the component
+    checkStatus(AudioComponentInstanceNew(comp, &audioUnit));
+    
+    //Setup the input callback.
+    AURenderCallbackStruct input;
+    
+    input.inputProc = outputProc;
+    input.inputProcRefCon = this;
+    
+    checkStatus(AudioUnitSetProperty(audioUnit,
+                              kAudioUnitProperty_SetRenderCallback,
+                              kAudioUnitScope_Input,
+                              0,
+                              &input,
+                              sizeof(input)));
+    
+    // Set the format
+    AudioStreamBasicDescription asbd;
+    UInt32 propertySize = sizeof(AudioStreamBasicDescription);
+    checkStatus(AudioUnitGetProperty(audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &asbd, &propertySize));
+
+    // Set the input to the input sample rate.
+    asbd.mSampleRate = inputAudioStreamBasicDescription.mSampleRate;
+    asbd.mChannelsPerFrame = inputAudioStreamBasicDescription.mChannelsPerFrame;
+    checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &asbd, propertySize));
+    asbd.mChannelsPerFrame = outputAudioStreamBasicDescription.mChannelsPerFrame;
+    checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 0, &asbd, propertySize));
+    
+    UInt32 maxFrames = 4096;
+    UInt32 size = sizeof(UInt32);
+    checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Input, 0, &maxFrames, size));
+    checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Output, 1, &maxFrames, size));
+    
+    
+    UInt32 busCount = 1;
+    checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_BusCount, kAudioUnitScope_Output, 1, &busCount, size));
+    
+    AudioUnitInitialize(audioUnit);
+
+    UInt32 dimensions[2];
+    size = sizeof(dimensions);
+    
+    checkStatus(AudioUnitGetProperty(audioUnit, kAudioUnitProperty_MatrixDimensions, kAudioUnitScope_Global, 0, &dimensions, &size));
+    
+    Float32 matrixLevels[dimensions[0]+1][dimensions[1]+1];
+    size = (UInt32)sizeof(matrixLevels);
+    
+    
+    // input masters
+    for (UInt32 inputChannel = 0; inputChannel < dimensions[0]+1; inputChannel++)
+    {
+        // output masters
+        for (UInt32 outputChannel = 0; outputChannel < dimensions[1]+1; outputChannel++)
+        {
+            matrixLevels[inputChannel][outputChannel] = 0;
+        }
+    }
+    
+    
+    
+    // input masters
+    for (UInt32 inputChannel = 0; inputChannel < dimensions[0]+1; inputChannel++)
+    {
+        matrixLevels[inputChannel][dimensions[1]] = 1.0;
+    }
+    
+    // output masters
+    for (UInt32 outputChannel = 0; outputChannel < dimensions[1]+1; outputChannel++)
+    {
+        matrixLevels[dimensions[0]][outputChannel] = 1.0;
+    }
+    
+    // master volume
+    matrixLevels[dimensions[0]][dimensions[1]] = 1.0;
+    
+    checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_MatrixLevels, kAudioUnitScope_Global, 0, &matrixLevels, size));
+    
+    return noErr;
+};
+
+OSStatus AudioPlayThrough::setMatrixLevel(UInt32 inputChannel, UInt32 outputChannel, Float32 level)
+{
+
+    UInt32 dimensions[2];
+    UInt32 size = sizeof(dimensions);
+    
+    checkStatus(AudioUnitGetProperty(multiChannelMixerAudioUnit, kAudioUnitProperty_MatrixDimensions, kAudioUnitScope_Global, 0, &dimensions, &size));
+    
+    Float32 matrixLevels[dimensions[0]+1][dimensions[1]+1];
+    size = (UInt32)sizeof(matrixLevels);
+    
+    checkStatus(AudioUnitGetProperty(multiChannelMixerAudioUnit, kAudioUnitProperty_MatrixLevels, kAudioUnitScope_Global, 0, &matrixLevels, &size));
+    
+    if (inputChannel > dimensions[0]) { return noErr; }
+    if (outputChannel > dimensions[1]) { return noErr; }
+    
+    matrixLevels[inputChannel][outputChannel] = 1.0;
+    
+    checkStatus(AudioUnitSetProperty(multiChannelMixerAudioUnit, kAudioUnitProperty_MatrixLevels, kAudioUnitScope_Global, 0, &matrixLevels, size))
+    
+    return noErr;
+}
+
 OSStatus AudioPlayThrough::setupVarispeed(){
     AudioUnit& audioUnit = varispeedAudioUnit;
     
@@ -650,18 +748,18 @@ OSStatus AudioPlayThrough::setupVarispeed(){
     checkStatus(AudioComponentInstanceNew(comp, &audioUnit));
     
     
-    //Setup the input callback.
-    AURenderCallbackStruct input;
-    
-    input.inputProc = outputProc;
-    input.inputProcRefCon = this;
-    
-    checkStatus(AudioUnitSetProperty(audioUnit,
-                              kAudioUnitProperty_SetRenderCallback,
-                              kAudioUnitScope_Input,
-                              0,
-                              &input,
-                              sizeof(input)));
+//    //Setup the input callback.
+//    AURenderCallbackStruct input;
+//    
+//    input.inputProc = outputProc;
+//    input.inputProcRefCon = this;
+//    
+//    checkStatus(AudioUnitSetProperty(audioUnit,
+//                              kAudioUnitProperty_SetRenderCallback,
+//                              kAudioUnitScope_Input,
+//                              0,
+//                              &input,
+//                              sizeof(input)));
     
     // Set the format
     AudioStreamBasicDescription asbd;
@@ -759,17 +857,27 @@ OSStatus AudioPlayThrough::setupConnections(){
     
     // Connect the audio units together.
     AudioUnitConnection connection;
-    connection.sourceAudioUnit = varispeedAudioUnit;
+    connection.sourceAudioUnit = multiChannelMixerAudioUnit;
     connection.destInputNumber = 0;
     connection.sourceOutputNumber = 0;
     
+    checkStatus(AudioUnitSetProperty(varispeedAudioUnit,
+                              kAudioUnitProperty_MakeConnection,
+                              kAudioUnitScope_Input,
+                              0,
+                              &connection,
+                              sizeof(connection)));
+
+
+    connection.sourceAudioUnit = varispeedAudioUnit;
+
     checkStatus(AudioUnitSetProperty(audioUnit,
                               kAudioUnitProperty_MakeConnection,
                               kAudioUnitScope_Input,
                               0,
                               &connection,
                               sizeof(connection)));
-    
+
 
     connection.sourceAudioUnit = audioUnit;
 
@@ -834,6 +942,7 @@ OSStatus AudioPlayThrough::initializeAudioUnits(){
     // AU needs to be initialized before we start them
     checkStatus(AudioUnitInitialize(inputAudioUnit));
     checkStatus(AudioUnitInitialize(varispeedAudioUnit));
+    checkStatus(AudioUnitInitialize(multiChannelMixerAudioUnit));
     checkStatus(AudioUnitInitialize(audioUnit));
     checkStatus(AudioUnitInitialize(outputAudioUnit));
     
