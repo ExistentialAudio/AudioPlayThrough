@@ -455,7 +455,7 @@ OSStatus AudioPlayThrough::setupInput(AudioDeviceID audioDeviceID){
 
     //Finds a component that meets the desc spec's
     comp = AudioComponentFindNext(NULL, &desc);
-    if (comp == NULL) exit (-1);
+    if (comp == NULL) return -1;
 
     //gains access to the services provided by the component
     checkStatus(AudioComponentInstanceNew(comp, &audioUnit));
@@ -543,7 +543,7 @@ OSStatus AudioPlayThrough::setupOutput(AudioDeviceID audioDeviceID){
     
     //Finds a component that meets the desc spec's
     comp = AudioComponentFindNext(NULL, &desc);
-    if (comp == NULL) exit (-1);
+    if (comp == NULL) return -1;
     
     //gains access to the services provided by the component
     checkStatus(AudioComponentInstanceNew(comp, &outputAudioUnit));
@@ -623,7 +623,7 @@ OSStatus AudioPlayThrough::setupMultiChannelMixer(){
     AudioComponent comp;
     //Finds a component that meets the desc spec's
     comp = AudioComponentFindNext(NULL, &matrixMixerAudioComponentDescription);
-    if (comp == NULL) exit (-1);
+    if (comp == NULL) return -1;
     
     //gains access to the services provided by the component
     checkStatus(AudioComponentInstanceNew(comp, &audioUnit));
@@ -742,7 +742,7 @@ OSStatus AudioPlayThrough::setupVarispeed(){
     AudioComponent comp;
     //Finds a component that meets the desc spec's
     comp = AudioComponentFindNext(NULL, &desc);
-    if (comp == NULL) exit (-1);
+    if (comp == NULL) return -1;
     
     //gains access to the services provided by the component
     checkStatus(AudioComponentInstanceNew(comp, &audioUnit));
@@ -810,7 +810,7 @@ OSStatus AudioPlayThrough::setupAudioUnit(){
         comp = AudioComponentFindNext(NULL, &desc);
         if (comp == NULL) {
             printf("Could not find audio component.\n");
-            exit (-1);
+            return -1;
             
         };
         
