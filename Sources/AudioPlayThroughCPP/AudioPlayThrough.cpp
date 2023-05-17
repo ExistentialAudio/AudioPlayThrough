@@ -436,7 +436,8 @@ OSStatus AudioPlayThrough::setupAudioFormats(){
     // Everything works better if we stick with stereo.
     //inputAudioStreamBasicDescription.mChannelsPerFrame = 2;
     
-    //outputAudioStreamBasicDescription.mChannelsPerFrame = 2;
+#warning will only output to 2 channels.
+    outputAudioStreamBasicDescription.mChannelsPerFrame = 2;
     
     return noErr;
 }
@@ -840,7 +841,7 @@ OSStatus AudioPlayThrough::setupAudioUnit(){
 
     // Set the input to the input sample rate.
     asbd.mSampleRate = outputAudioStreamBasicDescription.mSampleRate;
-    asbd.mChannelsPerFrame = inputAudioStreamBasicDescription.mChannelsPerFrame;
+    asbd.mChannelsPerFrame = outputAudioStreamBasicDescription.mChannelsPerFrame;
     checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &asbd, propertySize));
 
     // Set the output to the output sample rate.
