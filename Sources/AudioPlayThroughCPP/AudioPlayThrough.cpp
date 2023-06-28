@@ -433,10 +433,8 @@ OSStatus AudioPlayThrough::setupAudioFormats(){
     
     checkStatus(AudioObjectGetPropertyData(streamAudioDeviceID, &inAddress, 0, NULL, &size, &outputAudioStreamBasicDescription));
     
-    // Everything works better if we stick with stereo.
+    // Everything works better if we stick with stereo. Hardcoded to 2 channels.
     //inputAudioStreamBasicDescription.mChannelsPerFrame = 2;
-    
-#warning will only output to 2 channels.
     outputAudioStreamBasicDescription.mChannelsPerFrame = 2;
     
     return noErr;
