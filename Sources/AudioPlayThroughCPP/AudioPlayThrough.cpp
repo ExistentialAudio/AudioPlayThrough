@@ -105,6 +105,9 @@ OSStatus AudioPlayThrough::start()
     
     __block OSStatus status = noErr;
     
+    if (queue == NULL) {
+        return 1;
+    }
     dispatch_sync(queue, ^{
         
         firstInputTime = -1;

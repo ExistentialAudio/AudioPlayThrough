@@ -18,6 +18,9 @@ let package = Package(
         .library(
             name: "AudioPlayThroughObjC",
             targets: ["AudioPlayThroughObjC"]),
+        .library(
+            name: "RequestMicrophoneAuthorization",
+            targets: ["RequestMicrophoneAuthorization"])
     ],
     dependencies: [
     ],
