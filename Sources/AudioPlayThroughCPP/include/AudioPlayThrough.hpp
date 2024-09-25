@@ -15,18 +15,26 @@ Copyright (c) 2021 Devin Roth
 #include <CoreAudio/CoreAudio.h>
 #include <AudioToolbox/AudioToolbox.h>
 #include <RequestMicrophoneAuthorization.h>
-#include <Accelerate/Accelerate.h>;
+#include <Accelerate/Accelerate.h>
+#include <sys/syslog.h>
+
+#define    DebugMsg(inFormat, ...) \
+if (AudioPlayThrough::shouldPrintToOSLog) \
+{ \
+    syslog(LOG_NOTICE, "AudioPlayThrough:" inFormat " line: %d \n", \
+        ## __VA_ARGS__, \
+        __LINE__\
+        );\
+};
 
 #define checkStatus(status) \
-if(status) {\
+if(status && AudioPlayThrough::shouldPrintToOSLog) {\
     OSStatus error = static_cast<OSStatus>(status);\
-        fprintf(stdout, "CAPlayThrough Error: %X ->  %s:  %d\n",  error,\
-               __FILE__, \
-               __LINE__\
-               );\
-                   fflush(stdout);\
+        syslog(LOG_NOTICE, "AudioPlayThrough Error: %X line: %d\n",  error,\
+            __LINE__\
+            );\
         return status; \
-}
+};
 
 
 class AudioPlayThrough {
@@ -47,9 +55,9 @@ class AudioPlayThrough {
         .componentFlags = 0,
         .componentFlagsMask = 0};
     
-    AudioComponentDescription multiChannelMixerAudioComponentDescription = {
+    AudioComponentDescription matrixMixerAudioComponentDescription = {
         .componentType = kAudioUnitType_Mixer,
-        .componentSubType = kAudioUnitSubType_MultiChannelMixer,
+        .componentSubType = kAudioUnitSubType_MatrixMixer,
         .componentManufacturer = kAudioUnitManufacturer_Apple,
         .componentFlags = 0,
         .componentFlagsMask = 0};
@@ -90,23 +98,37 @@ class AudioPlayThrough {
     Float64 inputFrameSize = 0;
     Float64 outputFrameSize = 0;
     
-    Boolean isRunning = false;
+    Boolean _isRunning = false;
     
     dispatch_queue_t queue;
     char queueName[100];
+    
+    static Boolean shouldPrintToOSLog;
+    
+    Float32 peak;
     
 public:
     AudioPlayThrough();
     OSStatus create(CFStringRef input, CFStringRef output);
     OSStatus start();
     OSStatus stop();
-    void setAudioUnit(AudioComponentDescription audioComponentDescription);
+    void setAudioUnit(AudioUnit audioUnit);
     void bypassAudioUnit(UInt32 value);
     ~AudioPlayThrough();
     
-    Boolean monoInput = false;
+    Float32 getPeak() {
+        return peak;
+    };
+    
+    Boolean monoInput = true;
     
     void (*peakCallback)(Float32 peak) = NULL;
+    
+    Boolean isRunning() {
+        return _isRunning;
+    }
+    
+    OSStatus setMatrixLevel(UInt32 inputChannel, UInt32 outputChannel, Float32 level);
     
 private:
     OSStatus setup();
@@ -117,6 +139,7 @@ private:
     OSStatus setupAudioFormats();
     OSStatus setupInput(AudioDeviceID audioDeviceID);
     OSStatus setupVarispeed();
+    OSStatus setupMultiChannelMixer();
     OSStatus setupAudioUnit();
     OSStatus setupOutput(AudioDeviceID audioDeviceID);
     OSStatus setupBuffers();
@@ -141,6 +164,8 @@ private:
     static OSStatus outputProc(void *inRefCon, AudioUnitRenderActionFlags *ioActionFlags, const AudioTimeStamp *inTimeStamp, UInt32 inBusNumber, UInt32 inNumberFrames, AudioBufferList *ioData);
     
     static OSStatus streamListenerProc(AudioObjectID inObjectID, UInt32 inNumberAddresses, const AudioObjectPropertyAddress *inAddresses, void *inClientData);
+    
+
 };
 
 

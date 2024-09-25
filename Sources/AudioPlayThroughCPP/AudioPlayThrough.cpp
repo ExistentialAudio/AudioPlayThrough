@@ -8,11 +8,15 @@ Copyright (c) 2021 Devin Roth
 
 #include "AudioPlayThrough.hpp"
 
+#if DEBUG
+Boolean AudioPlayThrough::shouldPrintToOSLog = true;
+#else
+Boolean AudioPlayThrough::shouldPrintToOSLog = true;
+#endif
+
 AudioPlayThrough::AudioPlayThrough()
 {
     std::snprintf(queueName, 100, "AudioPlayThroughQueue_%d", rand());
-    
-    printf("New queue created named %s.\n", queueName);
     
     queue = dispatch_queue_create(queueName, NULL);
     
@@ -24,7 +28,7 @@ AudioPlayThrough::AudioPlayThrough()
     instantiateAudioUnit(inputAudioUnit, halAudioComponentDescription);
     instantiateAudioUnit(varispeedAudioUnit, varispeedAudioComponentDescription);
     instantiateAudioUnit(newTimePitchAudioUnit, newTimePitchAudioComponentDescription);
-    instantiateAudioUnit(multiChannelMixerAudioUnit, multiChannelMixerAudioComponentDescription);
+    instantiateAudioUnit(multiChannelMixerAudioUnit, matrixMixerAudioComponentDescription);
     instantiateAudioUnit(outputAudioUnit, halAudioComponentDescription);
     
 }
@@ -34,26 +38,23 @@ OSStatus AudioPlayThrough::instantiateAudioUnit(AudioUnit audioUnit, AudioCompon
     AudioComponent audioComponent = AudioComponentFindNext(NULL, &audioComponentDescription);
     
     if (audioComponent == NULL) {
-        std::cout << "Unable to find HALOutput AudioComponent. \n" << std::endl;
-        abort();
+        DebugMsg("Unable to find HALOutput AudioComponent. \n");
+        return 1234;
     }
 
     AudioComponentInstantiate(audioComponent,
                               kAudioComponentInstantiation_LoadOutOfProcess,
                               ^(AudioComponentInstance audioUnit, OSStatus error) {
         if (error) {
-            std::cout << "Unable to instantiate HALOutput AudioComponent. \n" << std::endl;
+            DebugMsg("Unable to instantiate HALOutput AudioComponent. \n");
             abort();
         }
-        audioUnit = audioUnit;
     });
     
     return noErr;
 }
 
 OSStatus AudioPlayThrough::create(CFStringRef input, CFStringRef output){
-    
-    
     
     inputAudioDeviceUID = CFStringCreateCopy(NULL, input);;
     outputAudioDeviceUID = CFStringCreateCopy(NULL, output);;
@@ -74,7 +75,7 @@ AudioDeviceID AudioPlayThrough::getAudioDeviceID(CFStringRef deviceUID){
     
     if (status)
     {
-        std::cout << "Failed to retrieve AudioDeviceID from UID: " << deviceUID << std::endl;
+        DebugMsg("Failed to retrieve AudioDeviceID from UID.");
     }
     
     return inDeviceID;
@@ -84,8 +85,9 @@ OSStatus AudioPlayThrough::setup(){
     
     checkStatus(setupAudioFormats());
     checkStatus(setupInput(inputAudioDeviceID));
+    checkStatus(setupMultiChannelMixer());
     checkStatus(setupVarispeed());
-    //checkStatus(setupAudioUnit());
+    checkStatus(setupAudioUnit());
     checkStatus(setupOutput(outputAudioDeviceID));
     checkStatus(setupConnections());
     checkStatus(setupBuffers());
@@ -99,12 +101,13 @@ OSStatus AudioPlayThrough::setup(){
 
 OSStatus AudioPlayThrough::start()
 {
-    
-//    stop()
 
     
     __block OSStatus status = noErr;
     
+    if (queue == NULL) {
+        return 1;
+    }
     dispatch_sync(queue, ^{
         
         firstInputTime = -1;
@@ -117,8 +120,7 @@ OSStatus AudioPlayThrough::start()
         inputAudioDeviceID = getAudioDeviceID(inputAudioDeviceUID);
         
         if (inputAudioDeviceID == 0) {
-            std::cout<< "Unable to start AudioPlayThrough. Invalid input device." << std::endl;
-            CFShow(inputAudioDeviceUID);
+            DebugMsg("Unable to start AudioPlayThrough. Invalid input device.");
             status = kAudioHardwareBadDeviceError;
             return;
         }
@@ -126,8 +128,7 @@ OSStatus AudioPlayThrough::start()
         outputAudioDeviceID = getAudioDeviceID(outputAudioDeviceUID);
         
         if (outputAudioDeviceID == 0) {
-            std::cout<< "Unable to start AudioPlayThrough. Invalid output device: " << std::endl;
-            CFShow(outputAudioDeviceUID);
+            DebugMsg("Unable to start AudioPlayThrough. Invalid output device.");
             status = kAudioHardwareBadDeviceError;
             return;
         }
@@ -136,7 +137,7 @@ OSStatus AudioPlayThrough::start()
         setup();
 
         if (inputAudioUnit == NULL || outputAudioUnit == NULL) {
-            printf("Unable to start AudioPlayThrough. AudioPlayThrough is not setup. \n");
+            DebugMsg("Unable to start AudioPlayThrough. AudioPlayThrough is not setup. \n");
             status = kAudioUnitErr_Initialized;
             return;
         }
@@ -153,7 +154,8 @@ OSStatus AudioPlayThrough::start()
             return;
         }
         
-        isRunning = true;
+        DebugMsg("AudioPlayThrough Started.");
+        _isRunning = true;
         
     });
     
@@ -165,8 +167,10 @@ OSStatus AudioPlayThrough::stop()
 
     __block OSStatus status = noErr;
     
-    if (isRunning)
+    if (_isRunning)
     {
+        _isRunning = false;
+        
         dispatch_sync(queue, ^{
         
             if (inputAudioUnit != NULL) status = (AudioOutputUnitStop(inputAudioUnit));
@@ -181,12 +185,12 @@ OSStatus AudioPlayThrough::stop()
                 return;
             }
             
-            isRunning = false;
-            
         });
+        
     }
     
     takedown();
+
     
     return noErr;
 }
@@ -200,6 +204,10 @@ AudioPlayThrough::~AudioPlayThrough()
 OSStatus AudioPlayThrough::inputProc(void *inRefCon, AudioUnitRenderActionFlags *ioActionFlags, const AudioTimeStamp *inTimeStamp, UInt32 inBusNumber, UInt32 inNumberFrames, AudioBufferList *ioData){
     
     AudioPlayThrough* This = (AudioPlayThrough*)inRefCon;
+    
+    if (!This->_isRunning){
+        return noErr;
+    }
     
     This->inputFrameSize = inNumberFrames;
     
@@ -215,56 +223,39 @@ OSStatus AudioPlayThrough::inputProc(void *inRefCon, AudioUnitRenderActionFlags 
     UInt32 channels = This->inputBuffer->mNumberBuffers;
     
     
-    // If the input is mono we are copying the audio to both channel 1 and 2.
-    if (This->monoInput)
-    {
-        for (UInt32 frame = 0; frame < inNumberFrames; frame ++){
-            Float32* buffer = (Float32*)This->inputBuffer->mBuffers[0].mData;
-            UInt64 ringBufferLocation = ((UInt64)(inTimeStamp->mSampleTime + frame) % This->ringBufferFrameSize) + This->ringBufferFrameSize * 0;
+    for (UInt32 frame = 0; frame < inNumberFrames; frame ++){
+        for (UInt32 channel = 0; channel < channels; channel++){
+            Float32* buffer = (Float32*)This->inputBuffer->mBuffers[channel].mData;
+            UInt64 ringBufferLocation = ((UInt64)(inTimeStamp->mSampleTime + frame) % This->ringBufferFrameSize) + This->ringBufferFrameSize * channel;
             This->ringBuffer[ringBufferLocation] = buffer[frame];
-            ringBufferLocation = ((UInt64)(inTimeStamp->mSampleTime + frame) % This->ringBufferFrameSize) + This->ringBufferFrameSize * 1;
-            This->ringBuffer[ringBufferLocation] = buffer[frame];
-        }
-    }
-    // Both input and output are 2 or more channels.
-    else
-    {
-        for (UInt32 frame = 0; frame < inNumberFrames; frame ++){
-            for (UInt32 channel = 0; channel < channels; channel++){
-                Float32* buffer = (Float32*)This->inputBuffer->mBuffers[channel].mData;
-                UInt64 ringBufferLocation = ((UInt64)(inTimeStamp->mSampleTime + frame) % This->ringBufferFrameSize) + This->ringBufferFrameSize * channel;
-                This->ringBuffer[ringBufferLocation] = buffer[frame];
-                
-            }
+            
         }
     }
     
 
-    if (This->peakCallback != NULL)
+    Float32 peak = 0;
+    for (UInt32 frame = 0; frame < inNumberFrames; frame ++)
     {
-        float peak;
-        vDSP_maxv((Float32*)This->inputBuffer->mBuffers[0].mData, 1, &peak, inNumberFrames);
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (This->isRunning)
-            {
-                This->peakCallback(peak);
-            }
-        });
+        if (((Float32*)This->inputBuffer->mBuffers[0].mData)[frame] > peak)
+        {
+            peak = ((Float32*)This->inputBuffer->mBuffers[0].mData)[frame];
+        }
     }
+    if (peak > 1)
+    {
+        peak = 1;
+    }
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        This->peak = peak;
+        
+        if (This->_isRunning && This->peakCallback != NULL)
+        {
+            This->peakCallback(This->peak);
+        }
+    });
     
     This->writeLocation = inTimeStamp->mSampleTime + inNumberFrames;
-
-    
-//    // Sine Wave for Testing
-//    for (UInt32 frame = 0; frame < inNumberFrames; frame ++)
-//    {
-//
-//        for (UInt32 channel = 0; channel < channels; channel++)
-//        {
-//            UInt64 ringBufferLocation = ((UInt64)(inTimeStamp->mSampleTime + frame) % This->ringBufferFrameSize) + This->ringBufferFrameSize * channel;
-//            This->ringBuffer[ringBufferLocation] = 0.5*sin(2*M_PI*(inTimeStamp->mSampleTime + frame)*220/48000);
-//        }
-//    }
     
     return noErr;
 }
@@ -278,7 +269,7 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
     
     AudioPlayThrough* This = (AudioPlayThrough*)inRefCon;
     
-    if (!This->isRunning){
+    if (!This->_isRunning){
         MakeBufferSilent (ioData);
         return noErr;
     }
@@ -315,9 +306,6 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
     
     This->outputFrameSize = inNumberFrames;
     
-    
-    //printf("Write: %f Read: %f Offset: %f BufferSize: %f\n", This->writeLocation, This->readLocation, This->writeLocation - This->readLocation, This->outputFrameSize);
-    
     if (This->writeLocation == 0){
         // input hasn't run yet -> silence
         MakeBufferSilent (ioData);
@@ -330,7 +318,6 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
         // calculate the offset
         This->inToOutSampleOffset = This->writeLocation - This->outputFrameSize - This->inputFrameSize - inTimeStamp->mSampleTime;
         MakeBufferSilent (ioData);
-        //printf("%f %f %f %f %f %f %f \n" , This->inToOutSampleOffset, This->readLocation, This->writeLocation, This->outputFrameSize, This->inputFrameSize, inTimeStamp->mSampleTime, rate);
         return  noErr;
     }
     
@@ -339,16 +326,14 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
     This->readLocation = inTimeStamp->mSampleTime + This->inToOutSampleOffset;
     
     if (This->readLocation > This->writeLocation - inNumberFrames) {
-        //printf("%f %f %f %f %f %f %f \n" , This->inToOutSampleOffset, This->readLocation, This->writeLocation, This->outputFrameSize, This->inputFrameSize, inTimeStamp->mSampleTime, rate);
-        printf("Trying to read before audio is written. Resetting sync. \n");
+        DebugMsg("Trying to read before audio is written. Resetting sync. \n");
         This->firstOutputTime = -1;
         MakeBufferSilent (ioData);
         return  noErr;
     }
     
     if (This->readLocation < This->writeLocation - This->outputFrameSize*2 - This->inputFrameSize*2) {
-        //printf("%f %f %f %f %f %f %f \n" , This->inToOutSampleOffset, This->readLocation, This->writeLocation, This->outputFrameSize, This->inputFrameSize, inTimeStamp->mSampleTime, rate);
-        printf("Reading is way behind. Resetting sync. \n");
+        DebugMsg("Reading is way behind. Resetting sync. \n");
         This->firstOutputTime = -1;
         MakeBufferSilent (ioData);
         return  noErr;
@@ -368,41 +353,12 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
         // needs to be slower.
         Float64 scale = 0.01 / This->outputFrameSize;
         rate += scale * difference;
-        //printf("Difference %f %f %f\n", difference, scale * difference, rate);
     } else {
         // needs to be faster.
         Float64 scale = 0.005 / This->inputFrameSize;
         rate += scale * difference;
-        //printf("Difference %f %f %f\n", difference, scale * difference, rate);
     }
     
-    // positive number go faster negative number go slower.
-    // - (This->outputFrameSize) = -0.001
-    // 0 = 0
-    // + (This->inputFrameSize) = +0.001
-    
-    // this would be perfect for PID.
-    
-    //0.001-0-0.001
-    
-//    difference * 0.00 * (This->inputFrameSize + This->outputFrameSize)
-//
-//    if (This->readLocation > This->writeLocation - This->outputFrameSize - This->inputFrameSize){
-//
-//        // read a little slower
-//        rate -= 0.0001;
-//        static UInt32 count = 0;
-//        count++;
-//        //printf("Slower Count: %i \n" , count);
-//    }
-//    else
-//    {
-//        // read a little faster
-//        rate += 0.0001;
-//        static UInt32 count = 0;
-//        count++;
-//        //printf("Faster Count: %i \n" , count);
-//    }
     
     // set the rate for the varispeed
     checkStatus(AudioUnitSetParameter(This->varispeedAudioUnit,
@@ -437,7 +393,7 @@ OSStatus AudioPlayThrough::streamListenerProc(AudioObjectID inObjectID, UInt32 i
         
         AudioPlayThrough* This = (AudioPlayThrough*)inClientData;
         
-        if (This->isRunning)
+        if (This->_isRunning)
         {
             This->takedown();
             This->start();
@@ -480,9 +436,8 @@ OSStatus AudioPlayThrough::setupAudioFormats(){
     
     checkStatus(AudioObjectGetPropertyData(streamAudioDeviceID, &inAddress, 0, NULL, &size, &outputAudioStreamBasicDescription));
     
-    // Everything works better if we stick with stereo.
-    inputAudioStreamBasicDescription.mChannelsPerFrame = 2;
-    
+    // Everything works better if we stick with stereo. Hardcoded to 2 channels.
+    //inputAudioStreamBasicDescription.mChannelsPerFrame = 2;
     outputAudioStreamBasicDescription.mChannelsPerFrame = 2;
     
     return noErr;
@@ -502,23 +457,12 @@ OSStatus AudioPlayThrough::setupInput(AudioDeviceID audioDeviceID){
 
     //Finds a component that meets the desc spec's
     comp = AudioComponentFindNext(NULL, &desc);
-    if (comp == NULL) exit (-1);
+    if (comp == NULL) return -1;
 
     //gains access to the services provided by the component
     checkStatus(AudioComponentInstanceNew(comp, &audioUnit));
-//
-//
-//    //AUHAL needs to be initialized before anything is done to it
-//    AudioComponentValidate(<#AudioComponent  _Nonnull inComponent#>, <#CFDictionaryRef  _Nullable inValidationParameters#>, <#AudioComponentValidationResult * _Nonnull outValidationResult#>)
-//    checkStatus(AudioUnitInitialize(audioUnit));
-//
+
     instantiateAudioUnit(inputAudioUnit, halAudioComponentDescription);
-//
-//    sleep(1);
-//
-    // Enable input and disable output.
-    
-    
     
     UInt32 enableIO;
     enableIO = 1;
@@ -601,7 +545,7 @@ OSStatus AudioPlayThrough::setupOutput(AudioDeviceID audioDeviceID){
     
     //Finds a component that meets the desc spec's
     comp = AudioComponentFindNext(NULL, &desc);
-    if (comp == NULL) exit (-1);
+    if (comp == NULL) return -1;
     
     //gains access to the services provided by the component
     checkStatus(AudioComponentInstanceNew(comp, &outputAudioUnit));
@@ -674,6 +618,118 @@ OSStatus AudioPlayThrough::setupOutput(AudioDeviceID audioDeviceID){
     return noErr;
 }
 
+OSStatus AudioPlayThrough::setupMultiChannelMixer(){
+    AudioUnit& audioUnit = multiChannelMixerAudioUnit;
+    
+    // load the audio unit
+    AudioComponent comp;
+    //Finds a component that meets the desc spec's
+    comp = AudioComponentFindNext(NULL, &matrixMixerAudioComponentDescription);
+    if (comp == NULL) return -1;
+    
+    //gains access to the services provided by the component
+    checkStatus(AudioComponentInstanceNew(comp, &audioUnit));
+    
+    //Setup the input callback.
+    AURenderCallbackStruct input;
+    
+    input.inputProc = outputProc;
+    input.inputProcRefCon = this;
+    
+    checkStatus(AudioUnitSetProperty(audioUnit,
+                              kAudioUnitProperty_SetRenderCallback,
+                              kAudioUnitScope_Input,
+                              0,
+                              &input,
+                              sizeof(input)));
+    
+    // Set the format
+    AudioStreamBasicDescription asbd;
+    UInt32 propertySize = sizeof(AudioStreamBasicDescription);
+    checkStatus(AudioUnitGetProperty(audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &asbd, &propertySize));
+
+    // Set the input to the input sample rate.
+    asbd.mSampleRate = inputAudioStreamBasicDescription.mSampleRate;
+    asbd.mChannelsPerFrame = inputAudioStreamBasicDescription.mChannelsPerFrame;
+    checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &asbd, propertySize));
+    asbd.mChannelsPerFrame = outputAudioStreamBasicDescription.mChannelsPerFrame;
+    checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 0, &asbd, propertySize));
+    
+    UInt32 maxFrames = 4096;
+    UInt32 size = sizeof(UInt32);
+    checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Input, 0, &maxFrames, size));
+    checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Output, 1, &maxFrames, size));
+    
+    
+    UInt32 busCount = 1;
+    checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_BusCount, kAudioUnitScope_Output, 1, &busCount, size));
+    
+    AudioUnitInitialize(audioUnit);
+
+    UInt32 dimensions[2];
+    size = sizeof(dimensions);
+    
+    checkStatus(AudioUnitGetProperty(audioUnit, kAudioUnitProperty_MatrixDimensions, kAudioUnitScope_Global, 0, &dimensions, &size));
+    
+    Float32 matrixLevels[dimensions[0]+1][dimensions[1]+1];
+    size = (UInt32)sizeof(matrixLevels);
+    
+    
+    // input masters
+    for (UInt32 inputChannel = 0; inputChannel < dimensions[0]+1; inputChannel++)
+    {
+        // output masters
+        for (UInt32 outputChannel = 0; outputChannel < dimensions[1]+1; outputChannel++)
+        {
+            matrixLevels[inputChannel][outputChannel] = 0;
+        }
+    }
+    
+    
+    
+    // input masters
+    for (UInt32 inputChannel = 0; inputChannel < dimensions[0]+1; inputChannel++)
+    {
+        matrixLevels[inputChannel][dimensions[1]] = 1.0;
+    }
+    
+    // output masters
+    for (UInt32 outputChannel = 0; outputChannel < dimensions[1]+1; outputChannel++)
+    {
+        matrixLevels[dimensions[0]][outputChannel] = 1.0;
+    }
+    
+    // master volume
+    matrixLevels[dimensions[0]][dimensions[1]] = 1.0;
+    
+    checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_MatrixLevels, kAudioUnitScope_Global, 0, &matrixLevels, size));
+    
+    return noErr;
+};
+
+OSStatus AudioPlayThrough::setMatrixLevel(UInt32 inputChannel, UInt32 outputChannel, Float32 level)
+{
+
+    UInt32 dimensions[2];
+    UInt32 size = sizeof(dimensions);
+    
+    checkStatus(AudioUnitGetProperty(multiChannelMixerAudioUnit, kAudioUnitProperty_MatrixDimensions, kAudioUnitScope_Global, 0, &dimensions, &size));
+    
+    Float32 matrixLevels[dimensions[0]+1][dimensions[1]+1];
+    size = (UInt32)sizeof(matrixLevels);
+    
+    checkStatus(AudioUnitGetProperty(multiChannelMixerAudioUnit, kAudioUnitProperty_MatrixLevels, kAudioUnitScope_Global, 0, &matrixLevels, &size));
+    
+    if (inputChannel > dimensions[0]) { return noErr; }
+    if (outputChannel > dimensions[1]) { return noErr; }
+    
+    matrixLevels[inputChannel][outputChannel] = level;
+    
+    checkStatus(AudioUnitSetProperty(multiChannelMixerAudioUnit, kAudioUnitProperty_MatrixLevels, kAudioUnitScope_Global, 0, &matrixLevels, size))
+    
+    return noErr;
+}
+
 OSStatus AudioPlayThrough::setupVarispeed(){
     AudioUnit& audioUnit = varispeedAudioUnit;
     
@@ -688,24 +744,24 @@ OSStatus AudioPlayThrough::setupVarispeed(){
     AudioComponent comp;
     //Finds a component that meets the desc spec's
     comp = AudioComponentFindNext(NULL, &desc);
-    if (comp == NULL) exit (-1);
+    if (comp == NULL) return -1;
     
     //gains access to the services provided by the component
     checkStatus(AudioComponentInstanceNew(comp, &audioUnit));
     
     
-    //Setup the input callback.
-    AURenderCallbackStruct input;
-    
-    input.inputProc = outputProc;
-    input.inputProcRefCon = this;
-    
-    checkStatus(AudioUnitSetProperty(audioUnit,
-                              kAudioUnitProperty_SetRenderCallback,
-                              kAudioUnitScope_Input,
-                              0,
-                              &input,
-                              sizeof(input)));
+//    //Setup the input callback.
+//    AURenderCallbackStruct input;
+//    
+//    input.inputProc = outputProc;
+//    input.inputProcRefCon = this;
+//    
+//    checkStatus(AudioUnitSetProperty(audioUnit,
+//                              kAudioUnitProperty_SetRenderCallback,
+//                              kAudioUnitScope_Input,
+//                              0,
+//                              &input,
+//                              sizeof(input)));
     
     // Set the format
     AudioStreamBasicDescription asbd;
@@ -730,8 +786,8 @@ OSStatus AudioPlayThrough::setupVarispeed(){
     return noErr;
 };
 
-void AudioPlayThrough::setAudioUnit(AudioComponentDescription audioComponentDescription){
-    memcpy(&this->audioComponentDescription, &audioComponentDescription, sizeof(audioComponentDescription));
+void AudioPlayThrough::setAudioUnit(AudioUnit audioUnit){
+    this->audioUnit = audioUnit;
 };
 
 void AudioPlayThrough::bypassAudioUnit(UInt32 value){
@@ -741,34 +797,43 @@ void AudioPlayThrough::bypassAudioUnit(UInt32 value){
 
 OSStatus AudioPlayThrough::setupAudioUnit(){
     
-//    if (audioComponentDescription.componentType == 0) {
-//        printf("audioComponentDescription not set. Using a delay by default.");
-//
-//        audioComponentDescription.componentType = kAudioUnitType_Effect;
-//        audioComponentDescription.componentSubType = kAudioUnitSubType_Delay;
-//        audioComponentDescription.componentManufacturer = kAudioUnitManufacturer_Apple;
-//        audioComponentDescription.componentFlags = 0;
-//        audioComponentDescription.componentFlagsMask = 0;
-//    }
     
-    AudioComponentDescription desc;
-    desc.componentType = kAudioUnitType_Effect;
-    desc.componentSubType = kAudioUnitSubType_Delay;
-    desc.componentManufacturer = kAudioUnitManufacturer_Apple;
-    desc.componentFlags = 0;
-    desc.componentFlagsMask = 0;
-    
-    AudioComponent comp;
-    //Finds a component that meets the desc spec's
-    comp = AudioComponentFindNext(NULL, &desc);
-    if (comp == NULL) {
-        printf("Could not find audio component.\n");
-        exit (-1);
+    if (audioUnit == NULL) {
+            
+        AudioComponentDescription desc;
+        desc.componentType = kAudioUnitType_Effect;
+        desc.componentSubType = kAudioUnitSubType_Delay;
+        desc.componentManufacturer = kAudioUnitManufacturer_Apple;
+        desc.componentFlags = 0;
+        desc.componentFlagsMask = 0;
         
-    };
+        AudioComponent comp;
+        //Finds a component that meets the desc spec's
+        comp = AudioComponentFindNext(NULL, &desc);
+        if (comp == NULL) {
+            printf("Could not find audio component.\n");
+            return -1;
+            
+        };
+        
+        checkStatus(AudioComponentInstanceNew(comp, &audioUnit));
+    }
     
-    //gains access to the services provided by the component
-    checkStatus(AudioComponentInstanceNew(comp, &audioUnit));
+    
+    AudioUnitUninitialize(audioUnit);
+    
+    // Connect the audio units together.
+    AudioUnitConnection connection;
+    connection.sourceAudioUnit = NULL;
+    connection.destInputNumber = 0;
+    connection.sourceOutputNumber = 0;
+    
+    checkStatus(AudioUnitSetProperty(audioUnit,
+                              kAudioUnitProperty_MakeConnection,
+                              kAudioUnitScope_Input,
+                              0,
+                              &connection,
+                              sizeof(connection)));
     
     // Set the format
     AudioStreamBasicDescription asbd;
@@ -776,10 +841,10 @@ OSStatus AudioPlayThrough::setupAudioUnit(){
     checkStatus(AudioUnitGetProperty(audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &asbd, &propertySize));
 
     // Set the input to the input sample rate.
-    asbd.mSampleRate = inputAudioStreamBasicDescription.mSampleRate;
-    asbd.mChannelsPerFrame = inputAudioStreamBasicDescription.mChannelsPerFrame;
+    asbd.mSampleRate = outputAudioStreamBasicDescription.mSampleRate;
+    asbd.mChannelsPerFrame = outputAudioStreamBasicDescription.mChannelsPerFrame;
     checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &asbd, propertySize));
-    
+
     // Set the output to the output sample rate.
     asbd.mSampleRate = outputAudioStreamBasicDescription.mSampleRate;
     asbd.mChannelsPerFrame = outputAudioStreamBasicDescription.mChannelsPerFrame;
@@ -794,26 +859,36 @@ OSStatus AudioPlayThrough::setupConnections(){
     
     // Connect the audio units together.
     AudioUnitConnection connection;
-    connection.sourceAudioUnit = varispeedAudioUnit;
+    connection.sourceAudioUnit = multiChannelMixerAudioUnit;
     connection.destInputNumber = 0;
     connection.sourceOutputNumber = 0;
     
+    checkStatus(AudioUnitSetProperty(varispeedAudioUnit,
+                              kAudioUnitProperty_MakeConnection,
+                              kAudioUnitScope_Input,
+                              0,
+                              &connection,
+                              sizeof(connection)));
+
+
+    connection.sourceAudioUnit = varispeedAudioUnit;
+
+    checkStatus(AudioUnitSetProperty(audioUnit,
+                              kAudioUnitProperty_MakeConnection,
+                              kAudioUnitScope_Input,
+                              0,
+                              &connection,
+                              sizeof(connection)));
+
+
+    connection.sourceAudioUnit = audioUnit;
+
     checkStatus(AudioUnitSetProperty(outputAudioUnit,
                               kAudioUnitProperty_MakeConnection,
                               kAudioUnitScope_Input,
                               0,
                               &connection,
                               sizeof(connection)));
-    
-//
-//    connection.sourceAudioUnit = audioUnit;
-//
-//    checkStatus(AudioUnitSetProperty(outputAudioUnit,
-//                              kAudioUnitProperty_MakeConnection,
-//                              kAudioUnitScope_Input,
-//                              0,
-//                              &connection,
-//                              sizeof(connection)));
 
     
     return noErr;
@@ -869,7 +944,8 @@ OSStatus AudioPlayThrough::initializeAudioUnits(){
     // AU needs to be initialized before we start them
     checkStatus(AudioUnitInitialize(inputAudioUnit));
     checkStatus(AudioUnitInitialize(varispeedAudioUnit));
-    //checkStatus(AudioUnitInitialize(audioUnit));
+    checkStatus(AudioUnitInitialize(multiChannelMixerAudioUnit));
+    checkStatus(AudioUnitInitialize(audioUnit));
     checkStatus(AudioUnitInitialize(outputAudioUnit));
     
     
@@ -914,6 +990,10 @@ OSStatus AudioPlayThrough::addInputListener(){
 }
 
 OSStatus AudioPlayThrough::removeInputListener(){
+    
+    if (inputAudioDeviceID == 0) {
+        return 0;
+    }
 
     AudioObjectPropertyAddress theAddress = { kAudioDevicePropertyStreams,
                                               kAudioObjectPropertyScopeGlobal,
@@ -982,12 +1062,17 @@ OSStatus AudioPlayThrough::addOutputListener(){
     theAddress.mScope = kAudioObjectPropertyScopeWildcard;
     theAddress.mElement = kAudioObjectPropertyElementWildcard;
     
-    checkStatus(AudioObjectAddPropertyListener(outputAudioDeviceID, &theAddress, streamListenerProc, this));
+    // non fatal 
+    AudioObjectAddPropertyListener(outputAudioDeviceID, &theAddress, streamListenerProc, this);
 
     return noErr;
 }
 
 OSStatus AudioPlayThrough::removeOutputListener(){
+    
+    if (outputAudioDeviceID == 0) {
+        return 0;
+    }
 
     AudioObjectPropertyAddress theAddress = { kAudioDevicePropertyStreams,
                                               kAudioObjectPropertyScopeGlobal,
@@ -1039,6 +1124,10 @@ OSStatus AudioPlayThrough::addDeviceIsAliveListener(AudioDeviceID audioDeviceID)
 }
 
 OSStatus AudioPlayThrough::removeDeviceIsAliveListener(AudioDeviceID audioDeviceID){
+    
+    if (audioDeviceID == 0) {
+        return 0;
+    }
 
     AudioObjectPropertyAddress theAddress = { kAudioDevicePropertyDeviceIsAlive,
                                               kAudioObjectPropertyScopeGlobal,
@@ -1090,7 +1179,9 @@ OSStatus AudioPlayThrough::takedown(){
         removeDeviceIsAliveListener(inputAudioDeviceID);
         removeDeviceIsAliveListener(outputAudioDeviceID);
         
-        // uninitializeaudiounit
+        inputAudioDeviceID = 0;
+        outputAudioDeviceID = 0;
+        
         AudioUnitUninitialize(inputAudioUnit);
         AudioUnitUninitialize(outputAudioUnit);
         AudioUnitUninitialize(varispeedAudioUnit);
