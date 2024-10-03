@@ -373,14 +373,12 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
     
     if (difference < 0) {
         // needs to be slower.
-        Float64 scale = 0.01 / This->outputFrameSize;
-        rate += scale * difference;
-        //printf("Difference %f %f %f\n", difference, scale * difference, rate);
+        Float64 scale = 0.000001;
+        rate -= scale;
     } else {
         // needs to be faster.
-        Float64 scale = 0.005 / This->inputFrameSize;
-        rate += scale * difference;
-        //printf("Difference %f %f %f\n", difference, scale * difference, rate);
+        Float64 scale = 0.000001;
+        rate += scale;
     }
     
     // positive number go faster negative number go slower.
