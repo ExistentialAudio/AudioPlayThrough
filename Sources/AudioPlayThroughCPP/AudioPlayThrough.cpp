@@ -349,17 +349,18 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
 
     Float64 difference = This->writeLocation - This->readLocation - This->outputFrameSize - This->inputFrameSize;
     
+
     if (difference < 0) {
         // needs to be slower.
-        Float64 scale = 0.01 / This->outputFrameSize;
-        rate += scale * difference;
+        Float64 scale = 0.000001;
+        rate -= scale;
     } else {
         // needs to be faster.
-        Float64 scale = 0.005 / This->inputFrameSize;
-        rate += scale * difference;
+        Float64 scale = 0.000001;
+        rate += scale;
     }
-    
-    
+    //printf("Difference: %f \t rate: %f \n", difference, rate);
+
     // set the rate for the varispeed
     checkStatus(AudioUnitSetParameter(This->varispeedAudioUnit,
                                    kVarispeedParam_PlaybackRate,

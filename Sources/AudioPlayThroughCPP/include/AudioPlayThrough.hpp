@@ -165,6 +165,8 @@ private:
     
     static OSStatus streamListenerProc(AudioObjectID inObjectID, UInt32 inNumberAddresses, const AudioObjectPropertyAddress *inAddresses, void *inClientData);
     
+    static void changeRate(Float32 rate, void* inRefCon);
+    
 
 };
 
