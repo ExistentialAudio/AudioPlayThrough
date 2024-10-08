@@ -14,7 +14,6 @@ Copyright (c) 2021 Devin Roth
 #include <iostream>
 #include <CoreAudio/CoreAudio.h>
 #include <AudioToolbox/AudioToolbox.h>
-#include <RequestMicrophoneAuthorization.h>
 #include <Accelerate/Accelerate.h>
 #include <sys/syslog.h>
 

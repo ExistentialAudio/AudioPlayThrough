@@ -6,7 +6,7 @@ Copyright (c) 2021 Devin Roth
  
  */
 
-#include "AudioPlayThrough.hpp"
+#include "AudioPlayThrough.h"
 
 #if DEBUG
 Boolean AudioPlayThrough::shouldPrintToOSLog = true;
@@ -19,10 +19,6 @@ AudioPlayThrough::AudioPlayThrough()
     std::snprintf(queueName, 100, "AudioPlayThroughQueue_%d", rand());
     
     queue = dispatch_queue_create(queueName, NULL);
-    
-    
-    // Check to make sure we have access to the microphone.
-    RequestMicrophoneAuthorization();
     
     // Instantiate Audio Units
     instantiateAudioUnit(inputAudioUnit, halAudioComponentDescription);

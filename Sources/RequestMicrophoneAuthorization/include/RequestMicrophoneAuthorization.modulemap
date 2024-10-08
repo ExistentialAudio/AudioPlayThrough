@@ -1,6 +1,0 @@
-module RequestMicrophoneAuthorization {
-
-  header "RequestMicrophoneAuthorization.h"
-
-  export *
-}

@@ -10,39 +10,15 @@ let package = Package(
     ],
     products: [
         .library(
-            name: "AudioPlayThroughCPP",
-            targets: ["AudioPlayThroughCPP"]),
-        .library(
-            name: "AudioPlayThroughC",
-            targets: ["AudioPlayThroughC"]),
-        .library(
-            name: "AudioPlayThroughObjC",
-            targets: ["AudioPlayThroughObjC"]),
-        .library(
-            name: "RequestMicrophoneAuthorization",
-            targets: ["RequestMicrophoneAuthorization"])
+            name: "AudioPlayThrough",
+            targets: ["AudioPlayThrough"]),
     ],
     dependencies: [
     ],
     targets: [
         .target(
-            name: "AudioPlayThroughCPP",
-            dependencies: ["RequestMicrophoneAuthorization"]),
-        .target(
-            name: "AudioPlayThroughC",
-            dependencies: ["AudioPlayThroughCPP"]),
-        .target(
-            name: "AudioPlayThroughObjC",
-            dependencies: ["AudioPlayThroughCPP"]),
-        .target(
-            name: "RequestMicrophoneAuthorization",
-            dependencies: []),
+            name: "AudioPlayThrough"),
     ],
     cLanguageStandard: .c11,
     cxxLanguageStandard: .cxx14
 )
-
-// Routing
-// Default Mic -> Record Driver (hidden)
-// Default Output -> Driver -> Output and Record Driver
-// Record Driver -> Recorded
