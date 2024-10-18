@@ -25,35 +25,4 @@ audioPlayThrough.peakCallback = (Float32 peak){};
 status = audioPlayThrough.setMatrixLevel(0, 0, 1.0);
 
 ```
-
-## C Wrapper for Swift
-
-Unfortunately using ObjC to wrap audio code results in numerous audio errors. The safest method to ensure high quality real-time audio is to use a C wrapper. 
-
-```
-import AudioPlayThroughC
-
-var audioPlayThrough: UnsafeMutableRawPointer?
-
-audioPlayThrough = AudioPlayThroughCreate("inputUID" as CFString, "outputUID" as CFString)
-
-let status = AudioPlayThroughStart(audioPlayThrough)
-
-// Set initial volume and routing.
-AudioPlayThroughSetMatrixLevel(
-    audioPlayThrough,
-    UInt32(0),     // input channel
-    UInt32(0),     // output channel
-    Float32(1.0)   // volume
-)
-AudioPlayThroughSetMatrixLevel(
-    audioPlayThrough,
-    UInt32(1),     // input channel
-    UInt32(1),     // output channel
-    Float32(1.0)   // volume
-)
-
-status = AudioPlayThroughStop(audioPlayThrough)
-
-```
-
+If you want to use this with Swift I recommend using C++ Interoperability. 
