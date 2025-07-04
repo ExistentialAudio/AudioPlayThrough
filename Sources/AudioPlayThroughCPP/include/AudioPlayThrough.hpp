@@ -69,8 +69,16 @@ class AudioPlayThrough {
         .componentFlags = 0,
         .componentFlagsMask = 0};
     
+    AudioComponentDescription stereoMixerAudioComponentDescription = {
+        .componentType = kAudioUnitType_Effect,
+        .componentSubType = kAudioUnitSubType_StereoMixer,
+        .componentManufacturer = kAudioUnitManufacturer_Apple,
+        .componentFlags = 0,
+        .componentFlagsMask = 0};
+    
     AudioUnit inputAudioUnit = NULL;
     AudioUnit varispeedAudioUnit = NULL;
+    AudioUnit stereoMixerAudioUnit = NULL;
     AudioUnit audioUnit = NULL;
     AudioUnit multiChannelMixerAudioUnit = NULL;
     AudioUnit newTimePitchAudioUnit = NULL;
@@ -129,6 +137,7 @@ public:
     }
     
     OSStatus setMatrixLevel(UInt32 inputChannel, UInt32 outputChannel, Float32 level);
+    OSStatus setPostAudioUnitMatrixLevel(UInt32 inputChannel, UInt32 outputChannel, Float32 level);
     
 private:
     OSStatus setup();
@@ -141,6 +150,7 @@ private:
     OSStatus setupVarispeed();
     OSStatus setupMultiChannelMixer();
     OSStatus setupAudioUnit();
+    OSStatus setupStereoMixerAudioUnit();
     OSStatus setupOutput(AudioDeviceID audioDeviceID);
     OSStatus setupBuffers();
     OSStatus setupConnections();

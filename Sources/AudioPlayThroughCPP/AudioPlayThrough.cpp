@@ -88,6 +88,7 @@ OSStatus AudioPlayThrough::setup(){
     checkStatus(setupMultiChannelMixer());
     checkStatus(setupVarispeed());
     checkStatus(setupAudioUnit());
+    checkStatus(setupStereoMixerAudioUnit());
     checkStatus(setupOutput(outputAudioDeviceID));
     checkStatus(setupConnections());
     checkStatus(setupBuffers());
@@ -731,6 +732,29 @@ OSStatus AudioPlayThrough::setMatrixLevel(UInt32 inputChannel, UInt32 outputChan
     return noErr;
 }
 
+OSStatus AudioPlayThrough::setPostAudioUnitMatrixLevel(UInt32 inputChannel, UInt32 outputChannel, Float32 level)
+{
+
+    UInt32 dimensions[2];
+    UInt32 size = sizeof(dimensions);
+    
+    checkStatus(AudioUnitGetProperty(stereoMixerAudioUnit, kAudioUnitProperty_MatrixDimensions, kAudioUnitScope_Global, 0, &dimensions, &size));
+    
+    Float32 matrixLevels[dimensions[0]+1][dimensions[1]+1];
+    size = (UInt32)sizeof(matrixLevels);
+    
+    checkStatus(AudioUnitGetProperty(stereoMixerAudioUnit, kAudioUnitProperty_MatrixLevels, kAudioUnitScope_Global, 0, &matrixLevels, &size));
+    
+    if (inputChannel > dimensions[0]) { return noErr; }
+    if (outputChannel > dimensions[1]) { return noErr; }
+    
+    matrixLevels[inputChannel][outputChannel] = level;
+    
+    checkStatus(AudioUnitSetProperty(stereoMixerAudioUnit, kAudioUnitProperty_MatrixLevels, kAudioUnitScope_Global, 0, &matrixLevels, size))
+    
+    return noErr;
+}
+
 OSStatus AudioPlayThrough::setupVarispeed(){
     AudioUnit& audioUnit = varispeedAudioUnit;
     
@@ -783,6 +807,165 @@ OSStatus AudioPlayThrough::setupVarispeed(){
     UInt32 size = sizeof(UInt32);
     checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Input, 0, &maxFrames, size));
     checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Output, 1, &maxFrames, size));
+    
+    return noErr;
+};
+
+void printAudioUnitParameters(AudioUnit audioUnit) {
+    UInt32 paramListSize = 0;
+    OSStatus status;
+
+    // First get the size of the parameter list
+    status = AudioUnitGetPropertyInfo(
+        audioUnit,
+        kAudioUnitProperty_ParameterList,
+        kAudioUnitScope_Global,
+        0,
+        &paramListSize,
+        NULL
+    );
+    if (status != noErr) {
+        std::cerr << "Failed to get parameter list size: " << status << std::endl;
+        return;
+    }
+
+    // Get the number of parameters
+    UInt32 numParams = paramListSize / sizeof(AudioUnitParameterID);
+    AudioUnitParameterID* paramIDs = new AudioUnitParameterID[numParams];
+
+    status = AudioUnitGetProperty(
+        audioUnit,
+        kAudioUnitProperty_ParameterList,
+        kAudioUnitScope_Global,
+        0,
+        paramIDs,
+        &paramListSize
+    );
+    if (status != noErr) {
+        std::cerr << "Failed to get parameter list: " << status << std::endl;
+        delete[] paramIDs;
+        return;
+    }
+
+    for (UInt32 i = 0; i < numParams; ++i) {
+        AudioUnitParameterInfo paramInfo;
+        UInt32 paramInfoSize = sizeof(paramInfo);
+
+        status = AudioUnitGetProperty(
+            audioUnit,
+            kAudioUnitProperty_ParameterInfo,
+            kAudioUnitScope_Global,
+            paramIDs[i],
+            &paramInfo,
+            &paramInfoSize
+        );
+
+        if (status == noErr) {
+            CFStringRef nameRef = paramInfo.cfNameString;
+            char name[256];
+            if (nameRef && CFStringGetCString(nameRef, name, sizeof(name), kCFStringEncodingUTF8)) {
+                std::cout << "Param ID: " << paramIDs[i] << " — " << name << std::endl;
+                std::cout << "    Min: " << paramInfo.minValue
+                          << " Max: " << paramInfo.maxValue
+                          << " Default: " << paramInfo.defaultValue
+                          << " Unit: " << paramInfo.unit << std::endl;
+            } else {
+                std::cout << "Param ID: " << paramIDs[i] << " (no name)" << std::endl;
+            }
+        } else {
+            std::cerr << "Failed to get info for param " << paramIDs[i] << ": " << status << std::endl;
+        }
+    }
+
+    delete[] paramIDs;
+}
+
+
+OSStatus AudioPlayThrough::setupStereoMixerAudioUnit(){
+    AudioUnit& audioUnit = stereoMixerAudioUnit;
+    
+    // load the audio unit
+    AudioComponent comp;
+    //Finds a component that meets the desc spec's
+    comp = AudioComponentFindNext(NULL, &matrixMixerAudioComponentDescription);
+    if (comp == NULL) return -1;
+    
+    //gains access to the services provided by the component
+    checkStatus(AudioComponentInstanceNew(comp, &audioUnit));
+    
+    //Setup the input callback.
+    AURenderCallbackStruct input;
+    
+    input.inputProc = outputProc;
+    input.inputProcRefCon = this;
+    
+    checkStatus(AudioUnitSetProperty(audioUnit,
+                              kAudioUnitProperty_SetRenderCallback,
+                              kAudioUnitScope_Input,
+                              0,
+                              &input,
+                              sizeof(input)));
+    
+    // Set the format
+    AudioStreamBasicDescription asbd;
+    UInt32 propertySize = sizeof(AudioStreamBasicDescription);
+    checkStatus(AudioUnitGetProperty(audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &asbd, &propertySize));
+
+    // Set the input to the input sample rate.
+    asbd.mSampleRate = outputAudioStreamBasicDescription.mSampleRate;
+    asbd.mChannelsPerFrame = outputAudioStreamBasicDescription.mChannelsPerFrame;
+    checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &asbd, propertySize));
+    asbd.mChannelsPerFrame = outputAudioStreamBasicDescription.mChannelsPerFrame;
+    checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 0, &asbd, propertySize));
+    
+    UInt32 maxFrames = 4096;
+    UInt32 size = sizeof(UInt32);
+    checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Input, 0, &maxFrames, size));
+    checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Output, 1, &maxFrames, size));
+    
+    
+    UInt32 busCount = 1;
+    checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_BusCount, kAudioUnitScope_Output, 1, &busCount, size));
+    
+    AudioUnitInitialize(audioUnit);
+
+    UInt32 dimensions[2];
+    size = sizeof(dimensions);
+    
+    checkStatus(AudioUnitGetProperty(audioUnit, kAudioUnitProperty_MatrixDimensions, kAudioUnitScope_Global, 0, &dimensions, &size));
+    
+    Float32 matrixLevels[dimensions[0]+1][dimensions[1]+1];
+    size = (UInt32)sizeof(matrixLevels);
+    
+    
+    // input masters
+    for (UInt32 inputChannel = 0; inputChannel < dimensions[0]+1; inputChannel++)
+    {
+        // output masters
+        for (UInt32 outputChannel = 0; outputChannel < dimensions[1]+1; outputChannel++)
+        {
+            matrixLevels[inputChannel][outputChannel] = 0;
+        }
+    }
+    
+    
+    
+    // input masters
+    for (UInt32 inputChannel = 0; inputChannel < dimensions[0]+1; inputChannel++)
+    {
+        matrixLevels[inputChannel][dimensions[1]] = 1.0;
+    }
+    
+    // output masters
+    for (UInt32 outputChannel = 0; outputChannel < dimensions[1]+1; outputChannel++)
+    {
+        matrixLevels[dimensions[0]][outputChannel] = 1.0;
+    }
+    
+    // master volume
+    matrixLevels[dimensions[0]][dimensions[1]] = 1.0;
+    
+    checkStatus(AudioUnitSetProperty(audioUnit, kAudioUnitProperty_MatrixLevels, kAudioUnitScope_Global, 0, &matrixLevels, size));
     
     return noErr;
 };
@@ -883,6 +1066,17 @@ OSStatus AudioPlayThrough::setupConnections(){
 
 
     connection.sourceAudioUnit = audioUnit;
+    
+    
+    checkStatus(AudioUnitSetProperty(stereoMixerAudioUnit,
+                              kAudioUnitProperty_MakeConnection,
+                              kAudioUnitScope_Input,
+                              0,
+                              &connection,
+                              sizeof(connection)));
+
+
+    connection.sourceAudioUnit = stereoMixerAudioUnit;
 
     checkStatus(AudioUnitSetProperty(outputAudioUnit,
                               kAudioUnitProperty_MakeConnection,
@@ -947,6 +1141,7 @@ OSStatus AudioPlayThrough::initializeAudioUnits(){
     checkStatus(AudioUnitInitialize(varispeedAudioUnit));
     checkStatus(AudioUnitInitialize(multiChannelMixerAudioUnit));
     checkStatus(AudioUnitInitialize(audioUnit));
+    checkStatus(AudioUnitInitialize(stereoMixerAudioUnit));
     checkStatus(AudioUnitInitialize(outputAudioUnit));
     
     

@@ -74,6 +74,17 @@ OSStatus AudioPlayThroughSetMatrixLevel(void* audioPlayThrough, UInt32 inputChan
     return 0;
 };
 
+OSStatus AudioPlayThroughSetPostAudioUnitMatrixLevel(void* audioPlayThrough, UInt32 inputChannel, UInt32 outputChannel, Float32 level)
+{
+    if (audioPlayThrough)
+    {
+        return ((AudioPlayThrough*)audioPlayThrough)->setPostAudioUnitMatrixLevel(inputChannel, outputChannel, level);
+    }
+    
+    return 0;
+};
+
+
 void AudioPlayThroughSetAudioUnit(void* audioPlayThrough, AudioUnit audioUnit)
 {
     if (audioPlayThrough)

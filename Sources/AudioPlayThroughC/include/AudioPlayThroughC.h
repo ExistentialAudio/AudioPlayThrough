@@ -11,6 +11,7 @@ OSStatus AudioPlayThroughStop(void* audioPlayThrough);
 void AudioPlayThroughSetPeakCallback(void* audioPlayThrough, void(*peakCallback)(Float32 peak));
 Float32 AudioPlayThroughGetPeak(void* audioPlayThrough);
 OSStatus AudioPlayThroughSetMatrixLevel(void* audioPlayThrough, UInt32 inputChannel, UInt32 outputChannel, Float32 level);
+OSStatus AudioPlayThroughSetPostAudioUnitMatrixLevel(void* audioPlayThrough, UInt32 inputChannel, UInt32 outputChannel, Float32 level);
 void AudioPlayThroughDestroy(void* audioPlayThrough);
 void AudioPlayThroughSetAudioUnit(void* audioPlayThrough, AudioUnit audioUnit);
 void AudioPlayThroughBypassAudioUnit(void* audioPlayThrough, UInt32 value);
