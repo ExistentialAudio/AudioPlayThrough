@@ -277,7 +277,7 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
 
     //use the varispeed playback rate to offset small discrepancies in sample rate
     //first find the rate scalars of the input and output devices
-    Float64 rate = 0.0;
+    //Float64 rate = 0.0;
 
     UInt64 hostTime = AudioGetCurrentHostTime();
     
@@ -302,13 +302,17 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
         return noErr;
     }
     
-    rate = inputTime.mRateScalar / outputTime.mRateScalar;
+
     
     
     This->outputFrameSize = inNumberFrames;
     
+    
+    Float64 difference = This->writeLocation - This->readLocation - This->outputFrameSize - This->inputFrameSize - 512;
+    
     if (This->writeLocation == 0){
         // input hasn't run yet -> silence
+        This->rate = inputTime.mRateScalar / outputTime.mRateScalar;
         MakeBufferSilent (ioData);
         return noErr;
     }
@@ -326,14 +330,19 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
     // set the read location
     This->readLocation = inTimeStamp->mSampleTime + This->inToOutSampleOffset;
     
-    if (This->readLocation > This->writeLocation - inNumberFrames) {
+    auto offset = This->writeLocation - inNumberFrames - This->readLocation;
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        DebugMsg("Offset: %f Rate: %f\n", offset, This->rate);
+    });
+    if (offset < 0) {
         DebugMsg("Trying to read before audio is written. Resetting sync. \n");
         This->firstOutputTime = -1;
         MakeBufferSilent (ioData);
         return  noErr;
     }
     
-    if (This->readLocation < This->writeLocation - This->outputFrameSize*2 - This->inputFrameSize*2) {
+    if (This->readLocation < This->writeLocation - This->outputFrameSize*4 - This->inputFrameSize*4) {
         DebugMsg("Reading is way behind. Resetting sync. \n");
         This->firstOutputTime = -1;
         MakeBufferSilent (ioData);
@@ -347,27 +356,26 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
     
     //   http://www.cochlea.eu/en/sound/psychoacoustics/pitch
     // I found that not to be true. I can easily hear a variation of 0.002. The goal here is to pick a number low enough that we can't hear it but high enough to compensate for even the worst audio clocks.
-
-    Float64 difference = This->writeLocation - This->readLocation - This->outputFrameSize - This->inputFrameSize;
     
 
     if (difference < 0) {
         // needs to be slower.
-        Float64 scale = 0.000001;
-        rate -= scale;
-    } else {
+        This->rate = 0.9999;
+    } else if (difference > 512) {
         // needs to be faster.
-        Float64 scale = 0.000001;
-        rate += scale;
+        This->rate = 1.0001;
+    } else {
+        This->rate = 1.0;
     }
-    //printf("Difference: %f \t rate: %f \n", difference, rate);
+
+
 
     // set the rate for the varispeed
     checkStatus(AudioUnitSetParameter(This->varispeedAudioUnit,
                                    kVarispeedParam_PlaybackRate,
                                    kAudioUnitScope_Global,
                                    0,
-                                   rate,
+                                   This->rate,
                                    0));
 
     // Copy audio from the ringbuffer.
