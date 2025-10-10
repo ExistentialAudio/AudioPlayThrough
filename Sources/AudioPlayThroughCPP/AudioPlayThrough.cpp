@@ -332,9 +332,9 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
     
     auto offset = This->writeLocation - inNumberFrames - This->readLocation;
     
-    dispatch_async(dispatch_get_main_queue(), ^{
-        DebugMsg("Offset: %f Rate: %f\n", offset, This->rate);
-    });
+//    dispatch_async(dispatch_get_main_queue(), ^{
+//        DebugMsg("Offset: %f Rate: %f\n", offset, This->rate);
+//    });
     if (offset < 0) {
         DebugMsg("Trying to read before audio is written. Resetting sync. \n");
         This->firstOutputTime = -1;
