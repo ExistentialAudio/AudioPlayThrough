@@ -103,6 +103,8 @@ class AudioPlayThrough {
     
     Boolean monoOutput = false;
     Float64 rate = 1.0;
+    Float64 previousRate = 1.0;
+    Float64 previousRateChangeTimeStamp = 0;
     
     Float64 inputFrameSize = 0;
     Float64 outputFrameSize = 0;

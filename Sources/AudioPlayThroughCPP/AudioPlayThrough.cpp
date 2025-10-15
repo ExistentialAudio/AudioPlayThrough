@@ -332,9 +332,9 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
     
     auto offset = This->writeLocation - inNumberFrames - This->readLocation;
     
-//    dispatch_async(dispatch_get_main_queue(), ^{
-//        DebugMsg("Offset: %f Rate: %f\n", offset, This->rate);
-//    });
+    dispatch_async(dispatch_get_main_queue(), ^{
+        DebugMsg("Offset: %f Rate: %f\n", offset, This->rate);
+    });
     if (offset < 0) {
         DebugMsg("Trying to read before audio is written. Resetting sync. \n");
         This->firstOutputTime = -1;
@@ -349,6 +349,8 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
         return  noErr;
     }
     
+    // DRIFT CORRECTION
+    
     // Calibrate to lowest possible latency.
     // The theory here is that we can get as close to the write location as possible but never cross it.
     
@@ -357,27 +359,45 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
     //   http://www.cochlea.eu/en/sound/psychoacoustics/pitch
     // I found that not to be true. I can easily hear a variation of 0.002. The goal here is to pick a number low enough that we can't hear it but high enough to compensate for even the worst audio clocks.
     
-
-    if (difference < 0) {
-        // needs to be slower.
-        This->rate = 0.9999;
-    } else if (difference > 512) {
-        // needs to be faster.
-        This->rate = 1.0001;
-    } else {
-        This->rate = 1.0;
+    // durationInFrames is how often we should adjust.
+    UInt32 rateChangeDurationInFrames = 2048;
+    
+    // If it's been more than durationInFrames since last adjustment
+    if (inTimeStamp->mSampleTime - This->previousRateChangeTimeStamp > rateChangeDurationInFrames ) {
+        
+        // Decide if we need to make the audio faster or slower
+        // We could potentially make bigger changes based on the offset. Not currently implimented.
+        if (difference < 0) {
+            // needs to be slower.
+            This->rate = 0.999;
+        } else if (difference > 512) {
+            // needs to be faster.
+            This->rate = 1.001;
+        } else {
+            This->rate = 1.0;
+        }
+        
+        // If the rate has changed set a new rate that ramps over the durationInFrames
+        if (This->rate != This->previousRate) {
+            
+            AudioUnitParameterEvent ev{};
+            ev.eventType = kParameterEvent_Ramped;
+            ev.parameter = kVarispeedParam_PlaybackRate;
+            ev.scope = kAudioUnitScope_Global;
+            ev.element = 0;
+            ev.eventValues.ramp.startValue = This->previousRate;
+            ev.eventValues.ramp.endValue   = This->rate;
+            ev.eventValues.ramp.durationInFrames = rateChangeDurationInFrames;
+            OSStatus osStatus = AudioUnitScheduleParameters(This->varispeedAudioUnit, &ev, 1);
+            // check err. I'm not sure it matters if there's an error. Just print a message.
+            if (osStatus != noErr) {
+                printf("Failed to schedule rate change ramp for audio drift correction. OSStatus: %i\n", osStatus);
+            }
+            
+            This->previousRate = This->rate;
+            This->previousRateChangeTimeStamp = inTimeStamp->mSampleTime;
+        }
     }
-
-
-
-    // set the rate for the varispeed
-    checkStatus(AudioUnitSetParameter(This->varispeedAudioUnit,
-                                   kVarispeedParam_PlaybackRate,
-                                   kAudioUnitScope_Global,
-                                   0,
-                                   This->rate,
-                                   0));
-
     // Copy audio from the ringbuffer.
     UInt32 channels = ioData->mNumberBuffers;
     
