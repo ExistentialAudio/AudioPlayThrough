@@ -308,7 +308,7 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
     This->outputFrameSize = inNumberFrames;
     
     
-    Float64 difference = This->writeLocation - This->readLocation - This->outputFrameSize - This->inputFrameSize - 512;
+    Float64 difference = This->writeLocation - This->readLocation - This->outputFrameSize - This->inputFrameSize - 1024;
     
     if (This->writeLocation == 0){
         // input hasn't run yet -> silence
@@ -370,7 +370,7 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
         if (difference < 0) {
             // needs to be slower.
             This->rate = 0.999;
-        } else if (difference > 512) {
+        } else if (difference > 1024) {
             // needs to be faster.
             This->rate = 1.001;
         } else {
