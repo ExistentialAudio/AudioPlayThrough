@@ -312,7 +312,7 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
     
     if (This->writeLocation == 0){
         // input hasn't run yet -> silence
-        This->rate = inputTime.mRateScalar / outputTime.mRateScalar;
+        This->targetRate = inputTime.mRateScalar / outputTime.mRateScalar;
         MakeBufferSilent (ioData);
         return noErr;
     }
@@ -333,7 +333,13 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
     auto offset = This->writeLocation - inNumberFrames - This->readLocation;
     
     dispatch_async(dispatch_get_main_queue(), ^{
-        DebugMsg("Offset: %f Rate: %f\n", offset, This->rate);
+        DebugMsg(
+            "Offset: %+05.0f, Difference: %+05.0f, TargetRate: %f, CurrentRate: %f\n",
+            offset,
+            difference,
+            This->targetRate,
+            This->currentRate
+        );
     });
     if (offset < 0) {
         DebugMsg("Trying to read before audio is written. Resetting sync. \n");
@@ -360,44 +366,50 @@ OSStatus AudioPlayThrough::outputProc(void *inRefCon, AudioUnitRenderActionFlags
     // I found that not to be true. I can easily hear a variation of 0.002. The goal here is to pick a number low enough that we can't hear it but high enough to compensate for even the worst audio clocks.
     
     // durationInFrames is how often we should adjust.
-    UInt32 rateChangeDurationInFrames = 2048;
+    UInt32 rateChangeDurationInFrames = inNumberFrames;
     
     // If it's been more than durationInFrames since last adjustment
-    if (inTimeStamp->mSampleTime - This->previousRateChangeTimeStamp > rateChangeDurationInFrames ) {
+    //if (inTimeStamp->mSampleTime - This->previousRateChangeTimeStamp > rateChangeDurationInFrames ) {
         
         // Decide if we need to make the audio faster or slower
         // We could potentially make bigger changes based on the offset. Not currently implimented.
         if (difference < 0) {
-            // needs to be slower.
-            This->rate = 0.999;
-        } else if (difference > 1024) {
+            // neds to be slower.
+            This->targetRate = 0.999;
+        } else if (difference > inNumberFrames * 1.5) {
             // needs to be faster.
-            This->rate = 1.001;
+            This->targetRate = 1.001;
         } else {
-            This->rate = 1.0;
+            This->targetRate = 1.0;
         }
         
         // If the rate has changed set a new rate that ramps over the durationInFrames
-        if (This->rate != This->previousRate) {
+        if (This->targetRate != This->currentRate) {
             
-            AudioUnitParameterEvent ev{};
-            ev.eventType = kParameterEvent_Ramped;
-            ev.parameter = kVarispeedParam_PlaybackRate;
-            ev.scope = kAudioUnitScope_Global;
-            ev.element = 0;
-            ev.eventValues.ramp.startValue = This->previousRate;
-            ev.eventValues.ramp.endValue   = This->rate;
-            ev.eventValues.ramp.durationInFrames = rateChangeDurationInFrames;
-            OSStatus osStatus = AudioUnitScheduleParameters(This->varispeedAudioUnit, &ev, 1);
-            // check err. I'm not sure it matters if there's an error. Just print a message.
-            if (osStatus != noErr) {
-                printf("Failed to schedule rate change ramp for audio drift correction. OSStatus: %i\n", osStatus);
+            // Maximum amount the actual varispeed rate can change per buffer.
+            const Float64 rateStep = 0.0000001;
+            
+            if (This->targetRate > This->currentRate) {
+                This->currentRate += rateStep;
+            } else {
+                This->currentRate -= rateStep;
             }
+    
             
-            This->previousRate = This->rate;
-            This->previousRateChangeTimeStamp = inTimeStamp->mSampleTime;
+            OSStatus osStatus = AudioUnitSetParameter(
+                This->varispeedAudioUnit,
+                kVarispeedParam_PlaybackRate,
+                kAudioUnitScope_Global,
+                0,
+                static_cast<AudioUnitParameterValue>(This->currentRate),
+                0
+            );
+
+            if (osStatus != noErr) {
+                DebugMsg("AudioUnitSetParameter failed: %d\n", osStatus);
+            }
         }
-    }
+    //}
     // Copy audio from the ringbuffer.
     UInt32 channels = ioData->mNumberBuffers;
     

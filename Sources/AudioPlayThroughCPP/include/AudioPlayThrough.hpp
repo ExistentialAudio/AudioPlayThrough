@@ -102,8 +102,8 @@ class AudioPlayThrough {
     AudioStreamBasicDescription outputAudioStreamBasicDescription;
     
     Boolean monoOutput = false;
-    Float64 rate = 1.0;
-    Float64 previousRate = 1.0;
+    Float64 targetRate = 1.0;
+    Float64 currentRate = 1.0;
     Float64 previousRateChangeTimeStamp = 0;
     
     Float64 inputFrameSize = 0;
